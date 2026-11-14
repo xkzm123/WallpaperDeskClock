@@ -20,6 +20,7 @@ namespace WallpaperDeskClock
         System.Windows.Forms.Timer displayWatch;
         SettingsForm settingsForm;
         StatsForm statsForm;
+        WallpaperForm wallpaperForm;
         string lastDisplaySignature = "";
         bool exiting;
 
@@ -148,6 +149,8 @@ namespace WallpaperDeskClock
                 w.LayoutData.X = 0.575f;
                 w.LayoutData.Y = 0.790f;
                 w.LayoutData.Scale = 1.0f;
+                w.LayoutData.TimeDX = w.LayoutData.TimeDY = 0f;
+                w.LayoutData.DateDX = w.LayoutData.DateDY = 0f;
                 w.ReloadFromConfig();
                 LayoutStore.Save(Cfg, w.ScreenKey, w.LayoutData);
             }
@@ -271,7 +274,8 @@ namespace WallpaperDeskClock
 
             var menu = new ContextMenuStrip();
             menu.Items.Add("设置…", null, (s, e) => ShowSettings());
-            menu.Items.Add("资源占用 / 运行状态", null, (s, e) => ShowStats());
+            menu.Items.Add("壁纸库…", null, (s, e) => ShowWallpaper());
+            menu.Items.Add("运行状态", null, (s, e) => ShowStats());
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("重新应用桌面壁纸", null, (s, e) => ApplyWallpaper());
             menu.Items.Add("恢复默认布局", null, (s, e) =>
@@ -325,6 +329,20 @@ namespace WallpaperDeskClock
             settingsForm.SyncFromApp();
         }
 
+        public void ShowWallpaper()
+        {
+            if (wallpaperForm == null || wallpaperForm.IsDisposed)
+            {
+                wallpaperForm = new WallpaperForm(this);
+                wallpaperForm.FormClosed += (s, e) => wallpaperForm = null;
+                wallpaperForm.Show();
+            }
+            else
+            {
+                wallpaperForm.Activate();
+            }
+        }
+
         void ShowStats()
         {
             if (statsForm == null || statsForm.IsDisposed)
@@ -352,6 +370,12 @@ namespace WallpaperDeskClock
                 settingsForm.Hide();
                 settingsForm.Dispose();
                 settingsForm = null;
+            }
+            if (wallpaperForm != null && !wallpaperForm.IsDisposed)
+            {
+                wallpaperForm.Hide();
+                wallpaperForm.Dispose();
+                wallpaperForm = null;
             }
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
             ExitThread();

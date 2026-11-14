@@ -1,12 +1,8 @@
-using System;
-using System.Collections.Generic;
+﻿using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
-using System.Globalization;
-using System.IO;
-using System.Text;
 using System.Windows.Forms;
 
 namespace WallpaperDeskClock
@@ -23,7 +19,19 @@ namespace WallpaperDeskClock
         Font fClock, fDate, fWeek, fSec;
         Color col;
         bool editMode;
+        bool contentPushed;
         int _lastSec = -1, _lastMin = -1, _lastDay = -1;
+
+        // 拖动状态
+        bool dragging;
+        int dragBlock;                 // 0 = 整体，1 = 时间块，2 = 日期块
+        Point dragOrigin;              // 按下时的鼠标屏幕坐标
+        Point winOrigin;               // 按下时的窗口位置
+        RectangleF dragRect;           // 按下时被拖块的矩形
+        float dx0, dy0;                // 按下时该块的偏移
+
+        // 渲染出的命中区域（窗口坐标）
+        RectangleF timeRect, dateRect;
 
         public ClockWindow(AppContext app, Screen screen, LayoutEntry layout)
         {
@@ -71,7 +79,7 @@ namespace WallpaperDeskClock
                 if (layer != null) layer.Dispose();
                 layer = new Bitmap(r.Width, r.Height, PixelFormat.Format32bppArgb);
             }
-            Render();
+            Render(contentPushed);
         }
 
         public void ReloadFromConfig()
@@ -104,9 +112,9 @@ namespace WallpaperDeskClock
             DisposeFonts();
             float s = LayoutData.Scale;
             fClock = MakeFont(app.Cfg.S("font_clock", "Bahnschrift"), app.Cfg.F("size_clock", 64f) * s);
-            fDate  = MakeFont(app.Cfg.S("font_date", "Consolas"),      app.Cfg.F("size_date", 18f) * s);
-            fWeek  = MakeFont(app.Cfg.S("font_week", "SimHei"),        app.Cfg.F("size_week", 18f) * s);
-            fSec   = MakeFont(app.Cfg.S("font_seconds", "Consolas"),   app.Cfg.F("size_seconds", 18f) * s);
+            fDate = MakeFont(app.Cfg.S("font_date", "Consolas"), app.Cfg.F("size_date", 18f) * s);
+            fWeek = MakeFont(app.Cfg.S("font_week", "SimHei"), app.Cfg.F("size_week", 18f) * s);
+            fSec = MakeFont(app.Cfg.S("font_seconds", "Consolas"), app.Cfg.F("size_seconds", 18f) * s);
         }
 
         void DisposeFonts()
@@ -119,7 +127,9 @@ namespace WallpaperDeskClock
 
         // ---------- 渲染 ----------
 
-        void Render()
+        void Render() { Render(true); }
+
+        void Render(bool push)
         {
             if (layer == null) return;
             var now = DateTime.Now;
@@ -127,57 +137,103 @@ namespace WallpaperDeskClock
             using (var g = Graphics.FromImage(layer))
             {
                 g.Clear(Color.Transparent);
+                // 分层窗口的透明像素不接收鼠标：编辑模式下铺一层 alpha 极低的底色，
+                // 整个窗口才可拖动（视觉上几乎不可见）
+                if (editMode)
+                {
+                    using (var bg = new SolidBrush(Color.FromArgb(14, 70, 100, 170)))
+                        g.FillRectangle(bg, 0, 0, layer.Width, layer.Height);
+                }
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
                 g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
                 bool shadow = app.Cfg.B("shadow", true);
                 bool use12h = app.Cfg.B("use12h", false);
-                string timeFmt = use12h ? "hh:mm" : "HH:mm";
-                string dateFmt = app.Cfg.S("dateformat", "yyyy.MM.dd");
+                bool showDate = app.Cfg.B("showdate", true);
+                bool showWeek = app.Cfg.B("showweek", true);
+                bool showSec = app.Cfg.B("showseconds", true);
 
                 float w = layer.Width, h = layer.Height;
-                float rightX = w * app.Cfg.F("rel_right", 0.831f);
-                float clockY = h * app.Cfg.F("rel_clock_y", 0.323f);
-                float dateY = h * app.Cfg.F("rel_date_y", 0.695f);
+                float baseX = w * app.Cfg.F("rel_right", 0.831f);
+                float baseClockY = h * app.Cfg.F("rel_clock_y", 0.323f);
+                float baseDateY = h * app.Cfg.F("rel_date_y", 0.695f);
                 float gapSec = app.Cfg.F("gap_seconds", 14f) * LayoutData.Scale;
                 float gapWeek = app.Cfg.F("gap_week", 26f) * LayoutData.Scale;
+                float secDy = app.Cfg.F("seconds_dy", 10f) * LayoutData.Scale;
 
-                string dateText = now.ToString(dateFmt);
+                // 时间块 / 日期块各自可独立偏移
+                float timeX = baseX + w * LayoutData.TimeDX;
+                float clockY = baseClockY + h * LayoutData.TimeDY;
+                float dateX = baseX + w * LayoutData.DateDX;
+                float dateY = baseDateY + h * LayoutData.DateDY;
+
+                string timeText = now.ToString(use12h ? "hh:mm" : "HH:mm");
+                string secText = now.ToString("ss");
+                string dateText = now.ToString(app.Cfg.S("dateformat", "yyyy.MM.dd"));
                 string weekText = WeekCN(now);
 
-                if (app.Cfg.B("showdate", true))
-                    DrawText(g, dateText, fDate, rightX, dateY, shadow, StringAlignment.Far);
+                var sf = StringFormat.GenericTypographic;
+                SizeF ts = g.MeasureString(timeText, fClock, PointF.Empty, sf);
+                SizeF ss = g.MeasureString(secText, fSec, PointF.Empty, sf);
+                SizeF ds = g.MeasureString(dateText, fDate, PointF.Empty, sf);
+                SizeF ws = g.MeasureString(weekText, fWeek, PointF.Empty, sf);
 
-                if (app.Cfg.B("showweek", true))
-                {
-                    SizeF ds = g.MeasureString(dateText, fDate, new PointF(0, 0), StringFormat.GenericTypographic);
-                    DrawText(g, weekText, fWeek, rightX - ds.Width - gapWeek, dateY, shadow, StringAlignment.Far);
-                }
+                // 命中区域（用于编辑模式下的独立拖动）
+                float timeRight = timeX + (showSec ? gapSec + ss.Width : 0);
+                timeRect = RectangleF.FromLTRB(timeX - ts.Width, clockY - ts.Height / 2f, timeRight, clockY + ts.Height / 2f);
 
-                DrawText(g, now.ToString(timeFmt), fClock, rightX, clockY, shadow, StringAlignment.Far);
+                float dateLeft = dateX - ds.Width;
+                if (showWeek) dateLeft -= gapWeek + ws.Width;
+                dateRect = RectangleF.FromLTRB(dateLeft, dateY - ds.Height / 2f, dateX, dateY + ds.Height / 2f);
 
-                if (app.Cfg.B("showseconds", true))
-                    DrawText(g, now.ToString("ss"), fSec, rightX + gapSec,
-                             clockY + app.Cfg.F("seconds_dy", 10f) * LayoutData.Scale, shadow, StringAlignment.Near);
+                if (showDate)
+                    DrawText(g, dateText, fDate, dateX, dateY, shadow, StringAlignment.Far);
+
+                if (showWeek)
+                    DrawText(g, weekText, fWeek, dateX - ds.Width - gapWeek, dateY, shadow, StringAlignment.Far);
+
+                DrawText(g, timeText, fClock, timeX, clockY, shadow, StringAlignment.Far);
+
+                if (showSec)
+                    DrawText(g, secText, fSec, timeX + gapSec, clockY + secDy, shadow, StringAlignment.Near);
 
                 if (editMode) DrawEditHint(g);
             }
 
-            PushLayered();
+            if (push) PushLayered();
         }
 
         void DrawEditHint(Graphics g)
         {
             using (var pen = new Pen(Color.FromArgb(150, 90, 180, 255), 2f))
                 g.DrawRectangle(pen, 1, 1, layer.Width - 3, layer.Height - 3);
-            using (var f = new Font("Microsoft YaHei", 12f * LayoutData.Scale, FontStyle.Regular, GraphicsUnit.Pixel))
-            using (var b = new SolidBrush(Color.FromArgb(210, 120, 190, 255)))
-                g.DrawString("拖动调整位置", f, b, 8, 6);
+
+            DrawBlockBox(g, timeRect, "时间", Color.FromArgb(170, 90, 180, 255));
+            DrawBlockBox(g, dateRect, "日期", Color.FromArgb(170, 110, 200, 140));
+        }
+
+        void DrawBlockBox(Graphics g, RectangleF r, string label, Color c)
+        {
+            var box = RectangleF.Inflate(r, 8f, 5f);
+            using (var pen = new Pen(c, 1.5f))
+            {
+                pen.DashStyle = DashStyle.Dash;
+                g.DrawRectangle(pen, box.X, box.Y, box.Width, box.Height);
+            }
+            float px = Math.Max(10f, 11f * LayoutData.Scale);
+            using (var f = new Font("Microsoft YaHei", px, FontStyle.Regular, GraphicsUnit.Pixel))
+            using (var b = new SolidBrush(c))
+            {
+                float ly = box.Y - f.Height - 1;
+                if (ly < 0) ly = box.Y + 2;
+                g.DrawString(label, f, b, box.X + 3, ly);
+            }
         }
 
         void PushLayered()
         {
+            if (layer == null || !IsHandleCreated) return;
             IntPtr screenDc = Native.GetDC(IntPtr.Zero);
             IntPtr memDc = Native.CreateCompatibleDC(screenDc);
             IntPtr hBmp = layer.GetHbitmap(Color.FromArgb(0));
@@ -236,7 +292,7 @@ namespace WallpaperDeskClock
             }
         }
 
-        // ---------- 编辑模式 ----------
+        // ---------- 编辑模式 / 拖动 ----------
 
         public bool EditMode
         {
@@ -245,7 +301,8 @@ namespace WallpaperDeskClock
             {
                 if (editMode == value) return;
                 editMode = value;
-                // 编辑模式需要接收鼠标，取消穿透并置顶
+                dragging = false;
+                Capture = false;
                 UpdateExStyle();
                 if (editMode)
                     Native.SetWindowPos(Handle, Native.HWND_TOPMOST, 0, 0, 0, 0,
@@ -254,7 +311,7 @@ namespace WallpaperDeskClock
                 {
                     Native.SetWindowPos(Handle, Native.HWND_BOTTOM, 0, 0, 0, 0,
                         Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
-                    app.SaveLayout(this);   // 退出编辑模式时落盘
+                    app.SaveLayout(this);
                 }
                 Render();
             }
@@ -283,15 +340,90 @@ namespace WallpaperDeskClock
             }
         }
 
-        protected override void WndProc(ref Message m)
+        /// <summary>显示前后都压到最底层，且首帧内容在沉底之后才推送 —— 启动不闪现</summary>
+        protected override void SetVisibleCore(bool value)
         {
-            if (editMode && m.Msg == Native.WM_LBUTTONDOWN)
+            if (value && IsHandleCreated)
+                Native.SetWindowPos(Handle, Native.HWND_BOTTOM, 0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            base.SetVisibleCore(value);
+            if (value)
+                Native.SetWindowPos(Handle, Native.HWND_BOTTOM, 0, 0, 0, 0,
+                    Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            if (!editMode || e.Button != MouseButtons.Left) return;
+
+            dragOrigin = Cursor.Position;
+            winOrigin = Location;
+            if (timeRect.Contains(e.Location)) dragBlock = 1;
+            else if (dateRect.Contains(e.Location)) dragBlock = 2;
+            else dragBlock = 0;
+
+            if (dragBlock == 1) { dx0 = LayoutData.TimeDX; dy0 = LayoutData.TimeDY; dragRect = timeRect; }
+            else if (dragBlock == 2) { dx0 = LayoutData.DateDX; dy0 = LayoutData.DateDY; dragRect = dateRect; }
+            else { dx0 = dy0 = 0; }
+
+            dragging = true;
+            Capture = true;
+            Cursor = Cursors.SizeAll;
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+
+            if (!dragging)
             {
-                Native.ReleaseCapture();
-                Native.SendMessage(Handle, Native.WM_NCLBUTTONDOWN, (IntPtr)Native.HTCAPTION, IntPtr.Zero);
+                if (editMode)
+                    Cursor = (timeRect.Contains(e.Location) || dateRect.Contains(e.Location)) ? Cursors.SizeAll : Cursors.Default;
                 return;
             }
-            base.WndProc(ref m);
+
+            Point p = Cursor.Position;
+            int dx = p.X - dragOrigin.X;
+            int dy = p.Y - dragOrigin.Y;
+
+            if (dragBlock == 0)
+            {
+                Location = new Point(winOrigin.X + dx, winOrigin.Y + dy);
+                return;
+            }
+
+            // 让被拖的块始终留在窗口内
+            int minDX = (int)Math.Round(-dragRect.Left);
+            int maxDX = (int)Math.Round(Width - dragRect.Right);
+            int minDY = (int)Math.Round(-dragRect.Top);
+            int maxDY = (int)Math.Round(Height - dragRect.Bottom);
+            dx = Math.Max(minDX, Math.Min(maxDX, dx));
+            dy = Math.Max(minDY, Math.Min(maxDY, dy));
+
+            float w = Math.Max(1, Width), h = Math.Max(1, Height);
+            if (dragBlock == 1)
+            {
+                LayoutData.TimeDX = dx0 + dx / w;
+                LayoutData.TimeDY = dy0 + dy / h;
+            }
+            else
+            {
+                LayoutData.DateDX = dx0 + dx / w;
+                LayoutData.DateDY = dy0 + dy / h;
+            }
+            Render();
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            if (!dragging) return;
+            dragging = false;
+            Capture = false;
+            Cursor = Cursors.Default;
+            app.SaveLayout(this);
+            Render();
         }
 
         protected override void OnLocationChanged(EventArgs e)
@@ -320,6 +452,7 @@ namespace WallpaperDeskClock
             if (!editMode)
                 Native.SetWindowPos(Handle, Native.HWND_BOTTOM, 0, 0, 0, 0,
                     Native.SWP_NOMOVE | Native.SWP_NOSIZE | Native.SWP_NOACTIVATE);
+            contentPushed = true;
             PushLayered();
         }
 

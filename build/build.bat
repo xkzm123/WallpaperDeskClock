@@ -1,4 +1,4 @@
-@echo off
+﻿@echo off
 setlocal
 cd /d "%~dp0\.."
 
@@ -20,7 +20,7 @@ if not exist "WallpaperDeskClock.ico" (
   /win32manifest:"src\app.manifest" ^
   /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
   "src\Program.cs" "src\AppContext.cs" "src\ClockWindow.cs" "src\Dialogs.cs" ^
-  "src\Paths.cs" "src\AssemblyInfo.cs"
+  "src\WallpaperForm.cs" "src\Ui.cs" "src\Paths.cs" "src\AssemblyInfo.cs"
 
 if errorlevel 1 (
   echo [x] build failed

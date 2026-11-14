@@ -1,92 +1,186 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace WallpaperDeskClock
 {
-    /// <summary>设置面板：开机自启、显示器选择、自定义布局、字号缩放</summary>
+    /// <summary>扁平滑块（替代原生 TrackBar）</summary>
+    class Slider : Control
+    {
+        int min = 50, max = 250, val = 100;
+
+        public event EventHandler ValueChanged;
+
+        public Slider()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                     ControlStyles.UserPaint | ControlStyles.ResizeRedraw |
+                     ControlStyles.SupportsTransparentBackColor, true);
+            Size = new Size(396, 26);
+            BackColor = Color.Transparent;
+            Cursor = Cursors.Hand;
+        }
+
+        public int Minimum { get { return min; } set { min = value; Value = val; } }
+        public int Maximum { get { return max; } set { max = value; Value = val; } }
+
+        public int Value
+        {
+            get { return val; }
+            set
+            {
+                int v = Math.Max(min, Math.Min(max, value));
+                if (v == val) { Invalidate(); return; }
+                val = v;
+                Invalidate();
+                var h = ValueChanged;
+                if (h != null) h(this, EventArgs.Empty);
+            }
+        }
+
+        int TrackLeft { get { return 9; } }
+        int TrackWidth { get { return Math.Max(1, Width - 18); } }
+
+        void SetFromX(int x)
+        {
+            float r = (float)(x - TrackLeft) / TrackWidth;
+            r = Math.Max(0f, Math.Min(1f, r));
+            Value = min + (int)Math.Round(r * (max - min));
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            base.OnMouseDown(e);
+            Capture = true;
+            SetFromX(e.X);
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (Capture) SetFromX(e.X);
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            base.OnMouseUp(e);
+            Capture = false;
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.Clear(Parent != null ? Parent.BackColor : Color.White);
+
+            int cy = Height / 2;
+            using (var track = Theme.Round(new Rectangle(TrackLeft, cy - 2, TrackWidth, 4), 2))
+            using (var b = new SolidBrush(Theme.Track))
+                g.FillPath(b, track);
+
+            int kx = TrackLeft + (int)Math.Round((float)(val - min) / Math.Max(1, max - min) * TrackWidth);
+            using (var fill = Theme.Round(new Rectangle(TrackLeft, cy - 2, Math.Max(2, kx - TrackLeft), 4), 2))
+            using (var b = new SolidBrush(Theme.Accent))
+                g.FillPath(b, fill);
+
+            using (var b = new SolidBrush(Color.White))
+            using (var pen = new Pen(Theme.Accent, 2f))
+            {
+                g.FillEllipse(b, kx - 7, cy - 7, 14, 14);
+                g.DrawEllipse(pen, kx - 7, cy - 7, 14, 14);
+            }
+        }
+    }
+
+    /// <summary>设置面板：开机自启、显示器选择、布局、壁纸库</summary>
     class SettingsForm : Form
     {
         readonly AppContext app;
-        CheckBox chkAutostart;
+        ToggleSwitch swAutostart, swEdit;
         ComboBox cboDisplay;
-        CheckBox chkEdit;
-        TrackBar trkScale;
-        Label lblScale;
-        Label lblHint;
+        Slider slider;
+        Label lblScale, lblHint, lblLibPath;
         bool loading;
 
         public SettingsForm(AppContext app)
         {
             this.app = app;
             Text = "壁纸桌面时钟";
-            FormBorderStyle = FormBorderStyle.FixedDialog;
+            FormBorderStyle = FormBorderStyle.FixedSingle;
             MaximizeBox = false;
             MinimizeBox = true;
             ShowInTaskbar = true;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(430, 546);
+            ClientSize = new Size(460, 610);
+            BackColor = Theme.Bg;
+            Font = Theme.Ui(12.5f);
             Icon = Paths.LoadAppIcon();
-            Font = new Font("Microsoft YaHei", 9.5f);
-            BackColor = Color.FromArgb(250, 250, 252);
+            AutoScaleMode = AutoScaleMode.Dpi;
+            DoubleBuffered = true;
 
-            int y = 16;
+            BuildHeader();
+            BuildStartCard();
+            BuildLayoutCard();
+            BuildWallpaperCard();
+            BuildFooter();
+            SyncFromApp();
+        }
 
-            var lblTitle = new Label
+        static Label Put(Control parent, string text, float px, bool bold, Color color, int x, int y)
+        {
+            var l = Theme.Label(text, px, bold, color);
+            l.Location = new Point(x, y);
+            parent.Controls.Add(l);
+            return l;
+        }
+
+        void BuildHeader()
+        {
+            var logo = new Panel
             {
-                Text = "壁纸桌面时钟",
-                Font = new Font("Microsoft YaHei", 14f, FontStyle.Bold),
-                Location = new Point(20, y),
-                AutoSize = true
+                Location = new Point(20, 16),
+                Size = new Size(34, 34),
+                BackColor = Color.Transparent
             };
-            Controls.Add(lblTitle);
-            y += 46;
+            logo.Paint += (s, e) => Theme.DrawLogo(e.Graphics, new Rectangle(0, 0, logo.Width, logo.Height));
+            Controls.Add(logo);
+            Put(this, "壁纸桌面时钟", 17, true, Theme.Text, 64, 14);
+            Put(this, "桌面时钟 · 设置", 11.5f, false, Theme.Muted, 65, 40);
+        }
 
-            // 开机自启
-            chkAutostart = new CheckBox
-            {
-                Text = "开机自动启动（默认关闭）",
-                Location = new Point(24, y),
-                AutoSize = true
-            };
-            chkAutostart.CheckedChanged += (s, e) =>
+        void BuildStartCard()
+        {
+            var card = new Card { Location = new Point(16, 72), Size = new Size(428, 118) };
+            Controls.Add(card);
+
+            Put(card, "启动与显示", 11.5f, true, Theme.Muted, 18, 12);
+            Put(card, "开机自动启动", 13, false, Theme.Text, 18, 42);
+
+            swAutostart = new ToggleSwitch { Location = new Point(364, 38) };
+            swAutostart.CheckedChanged += (s, e) =>
             {
                 if (loading) return;
-                if (chkAutostart.Checked)
-                {
-                    Autostart.Enable();
-                    lblHint.Text = "已写入启动项：" + Autostart.ExePath;
-                }
-                else
-                {
-                    Autostart.Disable();
-                    lblHint.Text = "已移除启动项";
-                }
+                if (swAutostart.Checked) { Autostart.Enable(); Hint("已添加到开机启动", Theme.Ok); }
+                else { Autostart.Disable(); Hint("已移除启动项", Theme.Muted); }
             };
-            Controls.Add(chkAutostart);
-            y += 34;
+            card.Controls.Add(swAutostart);
 
-            var sep1 = new Label { BorderStyle = BorderStyle.Fixed3D, Location = new Point(20, y), Size = new Size(390, 2) };
-            Controls.Add(sep1);
-            y += 14;
-
-            // 显示器
-            Controls.Add(new Label { Text = "显示位置", Location = new Point(24, y), AutoSize = true });
-            y += 26;
+            Put(card, "显示位置", 13, false, Theme.Text, 18, 82);
 
             cboDisplay = new ComboBox
             {
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                Location = new Point(24, y),
-                Width = 380
+                FlatStyle = FlatStyle.Flat,
+                Font = Theme.Ui(12.5f),
+                Location = new Point(128, 78),
+                Width = 282
             };
             cboDisplay.Items.Add("全部显示器");
             var screens = Screen.AllScreens;
             for (int i = 0; i < screens.Length; i++)
-                cboDisplay.Items.Add(string.Format("显示器 {0}  ({1} × {2})",
-                    i + 1, screens[i].Bounds.Width, screens[i].Bounds.Height));
+                cboDisplay.Items.Add(string.Format("显示器 {0}  ·  {1}×{2}", i + 1, screens[i].Bounds.Width, screens[i].Bounds.Height));
             cboDisplay.SelectedIndexChanged += (s, e) =>
             {
                 if (loading) return;
@@ -95,115 +189,95 @@ namespace WallpaperDeskClock
                 app.Cfg.Save();
                 app.RebuildFromSettings();
             };
-            Controls.Add(cboDisplay);
-            y += 36;
+            card.Controls.Add(cboDisplay);
+        }
 
-            // 自定义布局
-            chkEdit = new CheckBox
-            {
-                Text = "自定义布局模式（勾选后可用鼠标拖动时钟）",
-                Location = new Point(24, y),
-                AutoSize = true
-            };
-            chkEdit.CheckedChanged += (s, e) =>
+        void BuildLayoutCard()
+        {
+            var card = new Card { Location = new Point(16, 202), Size = new Size(428, 196) };
+            Controls.Add(card);
+
+            Put(card, "布局", 11.5f, true, Theme.Muted, 18, 12);
+            Put(card, "自定义布局模式", 13, false, Theme.Text, 18, 42);
+
+            swEdit = new ToggleSwitch { Location = new Point(364, 38) };
+            swEdit.CheckedChanged += (s, e) =>
             {
                 if (loading) return;
-                app.SetEditMode(chkEdit.Checked);
-                lblHint.Text = chkEdit.Checked
-                    ? "已进入编辑模式：拖动时钟到想要的位置，取消勾选后自动保存"
-                    : "编辑模式已关闭，布局已保存";
+                app.SetEditMode(swEdit.Checked);
+                if (swEdit.Checked) Hint("拖动时钟可整体移动，拖动「时间」「日期」可分别定位", Theme.Accent);
+                else Hint("布局已保存", Theme.Ok);
             };
-            Controls.Add(chkEdit);
-            y += 30;
+            card.Controls.Add(swEdit);
 
-            var lblEditHint = new Label
-            {
-                Text = "提示：编辑模式下时钟窗口会置顶并显示蓝色边框；\n拖动结束后取消勾选即保存位置。",
-                Location = new Point(44, y),
-                Size = new Size(360, 40),
-                ForeColor = Color.FromArgb(110, 110, 118)
-            };
-            Controls.Add(lblEditHint);
-            y += 46;
+            Put(card, "字号 / 缩放", 13, false, Theme.Text, 18, 82);
+            lblScale = Put(card, "1.00×", 13, true, Theme.Accent, 352, 80);
 
-            var sep2 = new Label { BorderStyle = BorderStyle.Fixed3D, Location = new Point(20, y), Size = new Size(390, 2) };
-            Controls.Add(sep2);
-            y += 14;
-
-            // 字号
-            Controls.Add(new Label { Text = "字号 / 缩放", Location = new Point(24, y), AutoSize = true });
-            lblScale = new Label
-            {
-                Text = "1.00×",
-                Location = new Point(340, y - 1),
-                AutoSize = true,
-                Font = new Font("Microsoft YaHei", 10f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(40, 110, 220)
-            };
-            Controls.Add(lblScale);
-            y += 26;
-
-            trkScale = new TrackBar
-            {
-                Minimum = 50,
-                Maximum = 250,
-                TickFrequency = 25,
-                SmallChange = 5,
-                LargeChange = 10,
-                Location = new Point(20, y),
-                Width = 390,
-                Value = 100
-            };
-            trkScale.Scroll += (s, e) =>
+            slider = new Slider { Location = new Point(14, 104), Size = new Size(400, 26), Minimum = 50, Maximum = 250, Value = 100 };
+            slider.ValueChanged += (s, e) =>
             {
                 if (loading) return;
-                float sc = trkScale.Value / 100f;
-                lblScale.Text = sc.ToString("0.00") + "×";
-                app.ApplyScaleToAll(sc);
+                lblScale.Text = (slider.Value / 100f).ToString("0.00") + "×";
+                app.ApplyScaleToAll(slider.Value / 100f);
             };
-            Controls.Add(trkScale);
-            y += 62;
+            card.Controls.Add(slider);
 
-            var btnReset = new Button
-            {
-                Text = "恢复默认布局",
-                Location = new Point(24, y),
-                Size = new Size(140, 32)
-            };
+            var btnReset = Theme.Button("恢复默认布局", false);
+            btnReset.Location = new Point(18, 146);
+            btnReset.Size = new Size(128, 32);
             btnReset.Click += (s, e) =>
             {
                 app.ResetLayouts();
                 SyncFromApp();
-                lblHint.Text = "已恢复默认布局";
+                Hint("已恢复默认布局", Theme.Ok);
             };
-            Controls.Add(btnReset);
+            card.Controls.Add(btnReset);
+        }
 
-            var btnOpenCfg = new Button
-            {
-                Text = "打开配置目录",
-                Location = new Point(176, y),
-                Size = new Size(120, 32)
-            };
-            btnOpenCfg.Click += (s, e) => { try { Process.Start("explorer.exe", Paths.ConfigDir); } catch { } };
-            Controls.Add(btnOpenCfg);
+        void BuildWallpaperCard()
+        {
+            var card = new Card { Location = new Point(16, 410), Size = new Size(428, 104) };
+            Controls.Add(card);
 
-            var btnClose = new Button
-            {
-                Text = "关闭",
-                Location = new Point(310, y),
-                Size = new Size(100, 32)
-            };
-            btnClose.Click += (s, e) => { WindowState = FormWindowState.Minimized; };
-            Controls.Add(btnClose);
-            y += 44;
+            Put(card, "壁纸", 11.5f, true, Theme.Muted, 18, 12);
+            Put(card, "壁纸库", 13, false, Theme.Text, 18, 46);
 
-            var btnExit = new Button
+            lblLibPath = new Label
             {
-                Text = "退出程序",
-                Location = new Point(24, y),
-                Size = new Size(140, 32),
-                ForeColor = Color.FromArgb(190, 60, 60)
+                AutoSize = false,
+                Size = new Size(190, 22),
+                Location = new Point(84, 46),
+                Font = Theme.Ui(11.5f),
+                ForeColor = Theme.Muted,
+                AutoEllipsis = true,
+                BackColor = Color.Transparent
             };
+            card.Controls.Add(lblLibPath);
+
+            var btnLib = Theme.Button("壁纸管理器", true);
+            btnLib.Location = new Point(288, 38);
+            btnLib.Size = new Size(122, 34);
+            btnLib.Click += (s, e) => app.ShowWallpaper();
+            card.Controls.Add(btnLib);
+        }
+
+        void BuildFooter()
+        {
+            lblHint = new Label
+            {
+                AutoSize = false,
+                Size = new Size(420, 20),
+                Location = new Point(20, 528),
+                Font = Theme.Ui(11.5f),
+                ForeColor = Theme.Muted,
+                BackColor = Color.Transparent
+            };
+            Controls.Add(lblHint);
+
+            var btnExit = Theme.Button("退出程序", false);
+            btnExit.Location = new Point(16, 556);
+            btnExit.Size = new Size(96, 34);
+            btnExit.ForeColor = Theme.Danger;
             btnExit.Click += (s, e) =>
             {
                 if (MessageBox.Show("确定退出壁纸桌面时钟？桌面时钟会一并消失。", "退出程序",
@@ -212,26 +286,17 @@ namespace WallpaperDeskClock
             };
             Controls.Add(btnExit);
 
-            var lblTaskbar = new Label
-            {
-                Text = "关闭只收回任务栏，程序继续运行。\n重新打开：点任务栏或托盘图标。",
-                Location = new Point(176, y),
-                Size = new Size(252, 40),
-                ForeColor = Color.FromArgb(110, 110, 118)
-            };
-            Controls.Add(lblTaskbar);
-            y += 48;
+            var btnClose = Theme.Button("关闭", true);
+            btnClose.Location = new Point(340, 556);
+            btnClose.Size = new Size(104, 34);
+            btnClose.Click += (s, e) => WindowState = FormWindowState.Minimized;
+            Controls.Add(btnClose);
+        }
 
-            lblHint = new Label
-            {
-                Text = "",
-                Location = new Point(24, y),
-                Size = new Size(386, 40),
-                ForeColor = Color.FromArgb(70, 120, 70)
-            };
-            Controls.Add(lblHint);
-
-            SyncFromApp();
+        void Hint(string text, Color color)
+        {
+            lblHint.Text = text;
+            lblHint.ForeColor = color;
         }
 
         public void SyncFromApp()
@@ -239,7 +304,7 @@ namespace WallpaperDeskClock
             loading = true;
             try
             {
-                chkAutostart.Checked = Autostart.IsEnabled();
+                swAutostart.Checked = Autostart.IsEnabled();
 
                 string mode = app.Cfg.S("displays", "all").Trim().ToLowerInvariant();
                 int idx = 0;
@@ -253,20 +318,20 @@ namespace WallpaperDeskClock
 
                 float scale = 1f;
                 if (app.Windows.Count > 0) scale = app.Windows[0].LayoutData.Scale;
-                trkScale.Value = (int)Math.Round(Math.Max(0.5f, Math.Min(2.5f, scale)) * 100);
-                lblScale.Text = (trkScale.Value / 100f).ToString("0.00") + "×";
+                slider.Value = (int)Math.Round(Math.Max(0.5f, Math.Min(2.5f, scale)) * 100);
+                lblScale.Text = (slider.Value / 100f).ToString("0.00") + "×";
+
+                lblLibPath.Text = WallpaperForm.LibraryFolder(app);
             }
             finally { loading = false; }
         }
     }
 
-    /// <summary>资源占用 / 运行状态</summary>
+    /// <summary>运行状态（自动刷新，无开关）</summary>
     class StatsForm : Form
     {
-        Label lblCpu, lblMem, lblThreads, lblUptime, lblHandle;
-        Button btnRefresh;
-        CheckBox chkAuto;
-        System.Windows.Forms.Timer timer;
+        Label lblPid, lblCpu, lblMem, lblThreads, lblUptime;
+        Timer timer;
         TimeSpan lastCpu;
         DateTime lastSample = DateTime.Now;
         readonly DateTime startTime = DateTime.Now;
@@ -274,56 +339,66 @@ namespace WallpaperDeskClock
 
         public StatsForm()
         {
-            Text = "资源占用 / 运行状态";
-            FormBorderStyle = FormBorderStyle.FixedToolWindow;
+            Text = "运行状态";
+            FormBorderStyle = FormBorderStyle.FixedSingle;
+            MaximizeBox = false;
+            MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(320, 230);
-            Font = new Font("Microsoft YaHei", 9.5f);
-            BackColor = Color.FromArgb(250, 250, 252);
+            ClientSize = new Size(360, 306);
+            BackColor = Theme.Bg;
+            Font = Theme.Ui(12.5f);
+            Icon = Paths.LoadAppIcon();
+            AutoScaleMode = AutoScaleMode.Dpi;
+            DoubleBuffered = true;
 
-            int y = 16;
-            lblCpu = MakeRow("CPU 占用", ref y);
-            lblMem = MakeRow("内存占用", ref y);
-            lblThreads = MakeRow("线程数", ref y);
-            lblHandle = MakeRow("句柄数", ref y);
-            lblUptime = MakeRow("运行时长", ref y);
+            var card = new Card { Location = new Point(16, 16), Size = new Size(328, 214) };
+            Controls.Add(card);
 
-            btnRefresh = new Button { Text = "刷新", Location = new Point(20, y + 10), Size = new Size(90, 30) };
-            btnRefresh.Click += (s, e) => Sample();
-            Controls.Add(btnRefresh);
+            int y = 18;
+            lblPid = Row(card, "进程 ID", ref y);
+            lblCpu = Row(card, "CPU 占用", ref y);
+            lblMem = Row(card, "内存占用", ref y);
+            lblThreads = Row(card, "线程数", ref y);
+            lblUptime = Row(card, "运行时长", ref y);
 
-            chkAuto = new CheckBox { Text = "自动刷新(1s)", Location = new Point(122, y + 15), AutoSize = true, Checked = true };
-            chkAuto.CheckedChanged += (s, e) => { if (timer != null) timer.Enabled = chkAuto.Checked; };
-            Controls.Add(chkAuto);
-
-            var btnClose = new Button { Text = "关闭", Location = new Point(230, y + 10), Size = new Size(70, 30) };
+            var btnClose = Theme.Button("关闭", true);
+            btnClose.Location = new Point(240, 250);
+            btnClose.Size = new Size(104, 34);
             btnClose.Click += (s, e) => Close();
             Controls.Add(btnClose);
+
+            var tip = Theme.Label("每秒自动刷新", 11, false, Theme.Muted);
+            tip.Location = new Point(18, 258);
+            Controls.Add(tip);
 
             lastCpu = proc.TotalProcessorTime;
             lastSample = DateTime.Now;
 
-            timer = new System.Windows.Forms.Timer { Interval = 1000 };
+            timer = new Timer { Interval = 1000 };
             timer.Tick += (s, e) => Sample();
             timer.Start();
-
             Sample();
         }
 
-        Label MakeRow(string title, ref int y)
+        Label Row(Control parent, string title, ref int y)
         {
-            var l = new Label { Text = title, Location = new Point(20, y), AutoSize = true, ForeColor = Color.FromArgb(100, 100, 108) };
-            Controls.Add(l);
+            var l = Theme.Label(title, 12.5f, false, Theme.Muted);
+            l.Location = new Point(20, y);
+            parent.Controls.Add(l);
+
             var v = new Label
             {
                 Text = "-",
-                Location = new Point(120, y - 1),
-                AutoSize = true,
-                Font = new Font("Consolas", 11f, FontStyle.Bold),
-                ForeColor = Color.FromArgb(30, 90, 200)
+                AutoSize = false,
+                Size = new Size(180, 22),
+                Location = new Point(128, y - 1),
+                TextAlign = ContentAlignment.MiddleRight,
+                Font = Theme.Mono(13),
+                ForeColor = Theme.Text,
+                BackColor = Color.Transparent
             };
-            Controls.Add(v);
-            y += 30;
+            parent.Controls.Add(v);
+            y += 38;
             return v;
         }
 
@@ -339,22 +414,22 @@ namespace WallpaperDeskClock
                 lastCpu = cpu;
                 lastSample = now;
 
+                lblPid.Text = proc.Id.ToString();
                 lblCpu.Text = pct.ToString("0.0") + " %";
                 lblMem.Text = (proc.WorkingSet64 / 1024.0 / 1024.0).ToString("0.0") + " MB";
                 lblThreads.Text = proc.Threads.Count.ToString();
-                lblHandle.Text = proc.HandleCount.ToString();
                 var up = DateTime.Now - startTime;
                 lblUptime.Text = string.Format("{0:00}:{1:00}:{2:00}", (int)up.TotalHours, up.Minutes, up.Seconds);
             }
             catch
             {
-                lblCpu.Text = lblMem.Text = lblThreads.Text = lblHandle.Text = lblUptime.Text = "N/A";
+                lblCpu.Text = lblMem.Text = lblThreads.Text = lblUptime.Text = "N/A";
             }
         }
 
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            if (timer != null) timer.Stop();
+            if (timer != null) { timer.Stop(); timer.Dispose(); }
             base.OnFormClosed(e);
         }
     }

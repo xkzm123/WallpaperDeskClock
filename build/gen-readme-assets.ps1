@@ -130,16 +130,65 @@ $bmp.Save((Join-Path $out 'preview-zoom.png'),[System.Drawing.Imaging.ImageForma
 $bmp.Dispose()
 
 # ---------------------------------------------------------------- 3. 编辑模式
+$crop = New-Object System.Drawing.Rectangle(1360, 820, 560, 260)
 $bmp,$g = New-Canvas 1120 520
-$g.DrawImage($prev,$dest,$crop,[System.Drawing.GraphicsUnit]::Pixel)
-$pen = New-Object System.Drawing.Pen((C 170 90 180 255),3)
-$g.DrawRectangle($pen,2,2,1115,515); $pen.Dispose()
-$fHint = F 'Microsoft YaHei' 26 ''
-$bHint = New-Object System.Drawing.SolidBrush((C 235 120 190 255))
-$g.DrawString('拖动调整位置',$fHint,$bHint,20,16)
-$fHint.Dispose(); $bHint.Dispose()
+$prev2 = [System.Drawing.Bitmap]::FromFile((Join-Path $out 'preview.png'))
+$g.DrawImage($prev2, (New-Object System.Drawing.Rectangle(0, 0, 1120, 520)), $crop, [System.Drawing.GraphicsUnit]::Pixel)
+$prev2.Dispose()
+
+# 编辑态的淡底色（对应 alpha 14）
+$tint = New-Object System.Drawing.SolidBrush((C 20 70 100 170))
+$wx = (1104 - 1360) * 2; $wy = (853 - 820) * 2
+$g.FillRectangle($tint, $wx, $wy, 816 * 2, 227 * 2); $tint.Dispose()
+
+# 窗口边框
+$pen = New-Object System.Drawing.Pen((C 170 90 180 255), 4)
+$g.DrawRectangle($pen, $wx + 2, $wy + 2, 816 * 2 - 4, 227 * 2 - 4); $pen.Dispose()
+
+# 时间 / 日期块
+$fC = F 'Bahnschrift' 128 ''
+$fD = F 'Consolas' 36 ''
+$fW = F 'SimHei' 36 ''
+$fS = F 'Consolas' 36 ''
+$sf = [System.Drawing.StringFormat]::GenericTypographic
+$p0 = New-Object System.Drawing.PointF(0, 0)
+$ts = $g.MeasureString('23:47', $fC, $p0, $sf)
+$ss = $g.MeasureString('08', $fS, $p0, $sf)
+$ds = $g.MeasureString('2026.11.14', $fD, $p0, $sf)
+$ws = $g.MeasureString('星期六', $fW, $p0, $sf)
+
+$rightX = (1104 + 0.831 * 816 - 1360) * 2
+$clockY = (853 + 0.323 * 227 - 820) * 2
+$dateY = (853 + 0.695 * 227 - 820) * 2
+$gapSec = 14 * 2; $gapWeek = 26 * 2
+
+$timeRect = New-Object System.Drawing.RectangleF(
+  [float]($rightX - $ts.Width), [float]($clockY - $ts.Height / 2),
+  [float]($ts.Width + $gapSec + $ss.Width), [float]$ts.Height)
+$dateRect = New-Object System.Drawing.RectangleF(
+  [float]($rightX - $ds.Width - $gapWeek - $ws.Width), [float]($dateY - $ds.Height / 2),
+  [float]($ds.Width + $gapWeek + $ws.Width), [float]$ds.Height)
+
+function BlockBox($rect, [string]$label, $color) {
+    $box = [System.Drawing.RectangleF]::Inflate($rect, 12, 8)
+    $p = New-Object System.Drawing.Pen($color, 2.5)
+    $p.DashStyle = [System.Drawing.Drawing2D.DashStyle]::Dash
+    $g.DrawRectangle($p, $box.X, $box.Y, $box.Width, $box.Height)
+    $p.Dispose()
+    $f = F 'Microsoft YaHei' 22 ''
+    $b = New-Object System.Drawing.SolidBrush($color)
+    $ly = $box.Y - 26
+    if ($ly -lt 0) { $ly = $box.Y + 3 }
+    $g.DrawString($label, $f, $b, ($box.X + 5), $ly)
+    $f.Dispose(); $b.Dispose()
+}
+
+BlockBox $timeRect '时间' (C 200 90 180 255)
+BlockBox $dateRect '日期' (C 200 110 200 140)
+
+$fC.Dispose(); $fD.Dispose(); $fW.Dispose(); $fS.Dispose()
 $g.Dispose()
-$bmp.Save((Join-Path $out 'edit-mode.png'),[System.Drawing.Imaging.ImageFormat]::Png)
+$bmp.Save((Join-Path $out 'edit-mode.png'), [System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
 
 # ---------------------------------------------------------------- 4. Hero 横幅

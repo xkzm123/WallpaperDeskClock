@@ -122,6 +122,9 @@ namespace WallpaperDeskClock
             "# 背景图（相对 exe 目录或绝对路径）",
             "image=resources/wallpaper.jpg",
             "",
+            "# 壁纸库目录（留空 = resources/）",
+            "library=",
+            "",
             "# 显示位置：all = 全部显示器 / 0 = 显示器1 / 1 = 显示器2",
             "displays=all",
             "",
@@ -231,10 +234,20 @@ namespace WallpaperDeskClock
         public float Y = 0.790f;
         public float Scale = 1.0f;
 
+        /// <summary>时间块 / 日期块相对默认位置的偏移（占窗口宽高的比例）</summary>
+        public float TimeDX, TimeDY, DateDX, DateDY;
+
         public const float BaseW = 0.425f;
         public const float BaseH = 0.210f;
 
-        public LayoutEntry Clone() { return new LayoutEntry { X = X, Y = Y, Scale = Scale }; }
+        public LayoutEntry Clone()
+        {
+            return new LayoutEntry
+            {
+                X = X, Y = Y, Scale = Scale,
+                TimeDX = TimeDX, TimeDY = TimeDY, DateDX = DateDX, DateDY = DateDY
+            };
+        }
     }
 
     static class LayoutStore
@@ -245,6 +258,10 @@ namespace WallpaperDeskClock
             e.X = cfg.F("layout." + screenKey + ".x", e.X);
             e.Y = cfg.F("layout." + screenKey + ".y", e.Y);
             e.Scale = cfg.F("layout." + screenKey + ".scale", e.Scale);
+            e.TimeDX = cfg.F("layout." + screenKey + ".tdx", 0f);
+            e.TimeDY = cfg.F("layout." + screenKey + ".tdy", 0f);
+            e.DateDX = cfg.F("layout." + screenKey + ".ddx", 0f);
+            e.DateDY = cfg.F("layout." + screenKey + ".ddy", 0f);
             return e;
         }
 
@@ -253,6 +270,10 @@ namespace WallpaperDeskClock
             cfg.Set("layout." + screenKey + ".x", e.X.ToString("0.#####", CultureInfo.InvariantCulture));
             cfg.Set("layout." + screenKey + ".y", e.Y.ToString("0.#####", CultureInfo.InvariantCulture));
             cfg.Set("layout." + screenKey + ".scale", e.Scale.ToString("0.###", CultureInfo.InvariantCulture));
+            cfg.Set("layout." + screenKey + ".tdx", e.TimeDX.ToString("0.#####", CultureInfo.InvariantCulture));
+            cfg.Set("layout." + screenKey + ".tdy", e.TimeDY.ToString("0.#####", CultureInfo.InvariantCulture));
+            cfg.Set("layout." + screenKey + ".ddx", e.DateDX.ToString("0.#####", CultureInfo.InvariantCulture));
+            cfg.Set("layout." + screenKey + ".ddy", e.DateDY.ToString("0.#####", CultureInfo.InvariantCulture));
             cfg.Save();
         }
 
@@ -261,6 +282,10 @@ namespace WallpaperDeskClock
             cfg.Set("layout." + screenKey + ".x", "0.575");
             cfg.Set("layout." + screenKey + ".y", "0.790");
             cfg.Set("layout." + screenKey + ".scale", "1");
+            cfg.Set("layout." + screenKey + ".tdx", "0");
+            cfg.Set("layout." + screenKey + ".tdy", "0");
+            cfg.Set("layout." + screenKey + ".ddx", "0");
+            cfg.Set("layout." + screenKey + ".ddy", "0");
             cfg.Save();
         }
     }
