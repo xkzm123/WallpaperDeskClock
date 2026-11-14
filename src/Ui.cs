@@ -36,28 +36,49 @@ namespace WallpaperDeskClock
             return p;
         }
 
-        /// <summary>矢量绘制应用 Logo（与 ico 同一套设计：渐变胶囊 + 白色表盘 + 12/3 指针）</summary>
+        /// <summary>矢量绘制应用 Logo（与 ico 同一套：深色胶囊 + 白色沙漏 + 蓝色沙堆）</summary>
         public static void DrawLogo(Graphics g, Rectangle r)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var path = Round(r, Math.Max(4, r.Width / 4)))
-            using (var lg = new LinearGradientBrush(r, Color.FromArgb(74, 142, 255), Color.FromArgb(24, 48, 132),
-                       LinearGradientMode.ForwardDiagonal))
+            float s = r.Width;
+
+            using (var path = Round(r, (int)Math.Max(4, s * 0.235f)))
+            using (var lg = new LinearGradientBrush(r, Color.FromArgb(26, 36, 62), Color.FromArgb(11, 17, 32),
+                       LinearGradientMode.Vertical))
                 g.FillPath(lg, path);
 
-            float pad = r.Width * 0.245f;
-            var face = new RectangleF(r.X + pad, r.Y + pad, r.Width - pad * 2, r.Height - pad * 2);
-            float w = Math.Max(1.2f, r.Width * 0.062f);
-            using (var pen = new Pen(Color.White, w))
-                g.DrawEllipse(pen, face);
+            float cx = r.X + s / 2f;
+            float top = r.Y + s * 0.20f, bot = r.Y + s * 0.80f, mid = r.Y + s * 0.50f;
+            float halfW = s * 0.205f, neck = halfW * 0.13f;
+            float w = Math.Max(1.1f, s * 0.038f);
 
-            float cx = face.X + face.Width / 2f, cy = face.Y + face.Height / 2f;
+            var sand = new PointF[]
+            {
+                new PointF(cx - halfW * 0.88f, bot - s * 0.015f),
+                new PointF(cx + halfW * 0.88f, bot - s * 0.015f),
+                new PointF(cx, mid + s * 0.15f)
+            };
+            using (var b = new SolidBrush(Color.FromArgb(92, 170, 255)))
+                g.FillPolygon(b, sand);
+
+            var glass = new PointF[]
+            {
+                new PointF(cx - halfW, top), new PointF(cx + halfW, top),
+                new PointF(cx + neck, mid), new PointF(cx + halfW, bot),
+                new PointF(cx - halfW, bot), new PointF(cx - neck, mid)
+            };
             using (var pen = new Pen(Color.White, w))
             {
-                pen.StartCap = LineCap.Round;
-                pen.EndCap = LineCap.Round;
-                g.DrawLine(pen, cx, cy, cx, cy - face.Height * 0.40f);
-                g.DrawLine(pen, cx, cy, cx + face.Width * 0.27f, cy);
+                pen.LineJoin = LineJoin.Round;
+                g.DrawPolygon(pen, glass);
+            }
+
+            float capW = halfW * 2 + s * 0.055f;
+            float capH = Math.Max(1.3f, s * 0.042f);
+            using (var b = new SolidBrush(Color.White))
+            {
+                g.FillRectangle(b, cx - capW / 2, top - capH * 1.05f, capW, capH);
+                g.FillRectangle(b, cx - capW / 2, bot + capH * 0.05f, capW, capH);
             }
         }
 

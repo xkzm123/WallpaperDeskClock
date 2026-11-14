@@ -6,7 +6,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](#快速开始)
 [![.NET](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4?logo=dotnet&logoColor=white)](#从源码编译)
-[![Version](https://img.shields.io/badge/version-1.2.3-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.2.4-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
 [![Size](https://img.shields.io/badge/exe-77%20KB-success)](#)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
