@@ -168,6 +168,8 @@ image=D:\Pictures\my-wallpaper.jpg
 
 程序不会改动你的原图，只会在同目录生成 `_wallpaper_active.jpg`（烘焙后的副本）并设为桌面壁纸。
 
+> 截图里用的演示壁纸是 [`assets/demo-wallpaper.png`](assets/demo-wallpaper.png)，可以直接拿去试效果。
+
 ---
 
 ## 🧠 工作原理
