@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Windows.Forms;
@@ -129,8 +129,13 @@ namespace WallpaperDeskClock
         {
             base.OnResize(e);
             if (Width <= 0 || Height <= 0) return;
+            // Region 是 GDI 句柄：换新的之前必须把旧的 Release，否则每次缩放都漏一个
             using (var p = Theme.Round(new Rectangle(0, 0, Width, Height), 12))
+            {
+                var old = Region;
                 Region = new Region(p);
+                if (old != null) old.Dispose();
+            }
         }
 
         protected override void OnPaint(PaintEventArgs e)

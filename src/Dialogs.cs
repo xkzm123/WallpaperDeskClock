@@ -1,7 +1,8 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace WallpaperDeskClock
@@ -289,7 +290,7 @@ namespace WallpaperDeskClock
             var btnClose = Theme.Button("关闭", true);
             btnClose.Location = new Point(340, 556);
             btnClose.Size = new Size(104, 34);
-            btnClose.Click += (s, e) => app.HideSettings();
+            btnClose.Click += (s, e) => app.CloseSettings();
             Controls.Add(btnClose);
         }
 
@@ -336,6 +337,28 @@ namespace WallpaperDeskClock
         DateTime lastSample = DateTime.Now;
         readonly DateTime startTime = DateTime.Now;
         readonly Process proc = Process.GetCurrentProcess();
+
+        /// <summary>PROCESS_MEMORY_COUNTERS_EX2 的布局（EX 的 PrivateUsage + EX2 的专用/共享工作集）</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        struct MEMORY_COUNTERS
+        {
+            public uint cb;
+            public uint PageFaultCount;
+            public IntPtr PeakWorkingSetSize;
+            public IntPtr WorkingSetSize;
+            public IntPtr QuotaPeakPagedPoolUsage;
+            public IntPtr QuotaPagedPoolUsage;
+            public IntPtr QuotaPeakNonPagedPoolUsage;
+            public IntPtr QuotaNonPagedPoolUsage;
+            public IntPtr PagefileUsage;
+            public IntPtr PeakPagefileUsage;
+            public IntPtr PrivateUsage;            // EX
+            public IntPtr PrivateWorkingSetSize;   // EX2：任务管理器“内存”列用的就是这个
+            public IntPtr SharedWorkingSetSize;    // EX2
+        }
+
+        [DllImport("psapi.dll", SetLastError = true)]
+        static extern bool GetProcessMemoryInfo(IntPtr hProcess, ref MEMORY_COUNTERS counters, int cb);
 
         public StatsForm()
         {
@@ -412,7 +435,9 @@ namespace WallpaperDeskClock
 
                 lblPid.Text = proc.Id.ToString();
                 lblCpu.Text = pct.ToString("0.0") + " %";
-                lblMem.Text = (proc.WorkingSet64 / 1024.0 / 1024.0).ToString("0.0") + " MB";
+                // 专用工作集（Private Working Set）：和任务管理器“内存”列同一个口径；
+                // WorkingSet64 含共享页，会明显偏大，不能用。
+                lblMem.Text = PrivateWorkingSetMb().ToString("0.0") + " MB";
                 lblThreads.Text = proc.Threads.Count.ToString();
                 var up = DateTime.Now - startTime;
                 lblUptime.Text = string.Format("{0:00}:{1:00}:{2:00}", (int)up.TotalHours, up.Minutes, up.Seconds);
@@ -423,9 +448,30 @@ namespace WallpaperDeskClock
             }
         }
 
+        /// <summary>专用工作集（MB）：优先 psapi 的 EX2.PrivateWorkingSetSize（= 任务管理器“内存”列），
+        /// 老系统取不到就退回专用提交 PrivateMemorySize64。整条链路不加载性能计数器组件。</summary>
+        double PrivateWorkingSetMb()
+        {
+            try
+            {
+                var c = new MEMORY_COUNTERS();
+                c.cb = (uint)Marshal.SizeOf(typeof(MEMORY_COUNTERS));
+                if (GetProcessMemoryInfo(proc.Handle, ref c, (int)c.cb))
+                {
+                    long ws = c.PrivateWorkingSetSize.ToInt64();
+                    if (ws > 0) return ws / 1024.0 / 1024.0;
+                    long pu = c.PrivateUsage.ToInt64();
+                    if (pu > 0) return pu / 1024.0 / 1024.0;
+                }
+            }
+            catch { }
+            return proc.PrivateMemorySize64 / 1024.0 / 1024.0;
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
-            if (timer != null) { timer.Stop(); timer.Dispose(); }
+            if (timer != null) { timer.Stop(); timer.Dispose(); timer = null; }
+            try { proc.Dispose(); } catch { }
             base.OnFormClosed(e);
         }
     }

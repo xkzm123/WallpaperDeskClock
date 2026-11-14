@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -20,6 +20,10 @@ namespace WallpaperDeskClock
     {
         [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode, EntryPoint = "SystemParametersInfoW")]
         public static extern int SystemParametersInfo(int uAction, int uParam, string lpvParam, int fuWinIni);
+
+        /// <summary>修剪工作集：min/max 同时传 -1 表示把物理页尽量交还系统（只影响驻留集，不影响堆）</summary>
+        [DllImport("kernel32.dll")]
+        public static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
 
         [DllImport("user32.dll")] public static extern IntPtr GetDC(IntPtr hWnd);
         [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
@@ -371,18 +375,7 @@ namespace WallpaperDeskClock
             Paths.Init();
             Config.EnsureDefault(Paths.ConfigFile);
 
-            // 启动最早期探针：验证进程本身是否有壁纸设置权限（结果写入 logs/probe.log）
-            try
-            {
-                int r0 = Native.SystemParametersInfo(Native.SPI_SETDESKWALLPAPER, 0,
-                    @"C:\Windows\Web\Wallpaper\Windows\img0.jpg", Native.SPIF_UPDATEINIFILE | Native.SPIF_SENDCHANGE);
-                File.WriteAllText(Paths.ProbeLog,
-                    "early probe=" + r0 + " err=" + Marshal.GetLastWin32Error() + Environment.NewLine);
-            }
-            catch (Exception ex)
-            {
-                try { File.WriteAllText(Paths.ProbeLog, "probe ex: " + ex.Message); } catch { }
-            }
+            // 启动阶段不再做壁纸试写探针：它每次启动都会把系统壁纸短暂改成 img0.jpg，还多写一个 probe.log
 
             // DPI 由 manifest 声明，这里不再调用 SetProcessDPIAware
 

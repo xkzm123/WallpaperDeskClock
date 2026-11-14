@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -23,6 +23,8 @@ namespace WallpaperDeskClock
         WallpaperForm wallpaperForm;
         string lastDisplaySignature = "";
         bool exiting;
+        bool started;      // 启动阶段不重复应用壁纸
+        bool trimming;     // 防重入：修剪过程中不再触发修剪
 
         public AppContext()
         {
@@ -35,10 +37,14 @@ namespace WallpaperDeskClock
 
             BuildWindows();
             SetupTray();
-            CreateSettingsWindow(true);   // 任务栏入口：最小化出现，不弹窗
 
-            tick = new System.Windows.Forms.Timer { Interval = 200 };
-            tick.Tick += (s, e) => { foreach (var w in windows) w.Tick(); };
+            // 设置窗口不预创建：它只在用户打开时存在，关闭即销毁（省下一整套 GDI 控件与字体）
+            tick = new System.Windows.Forms.Timer { Interval = TickInterval() };
+            tick.Tick += (s, e) =>
+            {
+                ApplyTickInterval();   // 配置被外部改动时也能立刻跟上（只读一次字典，代价可忽略）
+                foreach (var w in windows) w.Tick();
+            };
             tick.Start();
 
             // 显示器变化监听（拔插 / 分辨率变化）
@@ -46,8 +52,56 @@ namespace WallpaperDeskClock
             displayWatch.Tick += (s, e) => CheckDisplays();
             displayWatch.Start();
 
-            ApplyWallpaper();
+            started = true;
+            ApplyWallpaper();              // 全流程只应用一次
             Log("启动完成，显示器数=" + Screen.AllScreens.Length);
+
+            TrimMemory();                  // 启动完成：回收初始化期的大图与 GDI 残留
+        }
+
+        // ---------- 内存 ----------
+
+        /// <summary>
+        /// 压缩托管堆（含大对象堆 LOH）并把物理页交还系统。
+        /// 只在低频时机调用：启动完成 / 壁纸应用完毕 / 弹窗关闭。定时器里绝不调用。
+        /// </summary>
+        public void TrimMemory()
+        {
+            if (trimming) return;
+            trimming = true;
+            try
+            {
+                // compact: true 才是真正压缩 LOH（.NET 4.5+）；先收一轮、等终结器跑完再收一轮
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+                GC.WaitForPendingFinalizers();
+                GC.Collect(GC.MaxGeneration, GCCollectionMode.Forced, true, true);
+
+                using (var p = Process.GetCurrentProcess())
+                    Native.SetProcessWorkingSetSize(p.Handle, new IntPtr(-1), new IntPtr(-1));
+            }
+            catch { }
+            finally { trimming = false; }
+        }
+
+        /// <summary>弹窗关闭后再修剪：投递到消息队列，等窗体 Dispose 完成、对象真正不可达之后再回收</summary>
+        void TrimAfterUi()
+        {
+            var ctx = System.Threading.SynchronizationContext.Current;
+            if (ctx == null) { TrimMemory(); return; }
+            ctx.Post(delegate { TrimMemory(); }, null);
+        }
+
+        /// <summary>不显示秒时没必要 200 ms 醒一次，改成 1 s</summary>
+        int TickInterval()
+        {
+            return Cfg.B("showseconds", true) ? 200 : 1000;
+        }
+
+        void ApplyTickInterval()
+        {
+            if (tick == null) return;
+            int ms = TickInterval();
+            if (tick.Interval != ms) tick.Interval = ms;
         }
 
         public IList<ClockWindow> Windows { get { return windows; } }
@@ -90,7 +144,7 @@ namespace WallpaperDeskClock
             }
             windows.Clear();
             BuildWindows();
-            ApplyWallpaper();
+            if (started) ApplyWallpaper();   // 启动阶段由构造函数统一应用，避免重复烘焙大图
         }
 
         void BuildWindows()
@@ -165,6 +219,7 @@ namespace WallpaperDeskClock
         public void ReloadAll()
         {
             Cfg.Load(Cfg.FilePath);
+            ApplyTickInterval();
             foreach (var w in windows) w.ReloadFromConfig();
             ApplyWallpaper();
         }
@@ -175,18 +230,8 @@ namespace WallpaperDeskClock
         {
             try
             {
-                // 诊断：身份 / 探针
-                try
-                {
-                    var id = System.Security.Principal.WindowsIdentity.GetCurrent();
-                    var pr = new System.Security.Principal.WindowsPrincipal(id);
-                    Log("诊断 identity=" + id.Name + " admin=" + pr.IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator) + " cwd=" + Environment.CurrentDirectory);
-                    int probe = Native.SystemParametersInfo(Native.SPI_SETDESKWALLPAPER, 0,
-                        @"C:\Windows\Web\Wallpaper\Windows\img0.jpg", Native.SPIF_UPDATEINIFILE | Native.SPIF_SENDCHANGE);
-                    Log("探针壁纸(系统自带) 结果=" + probe + " err=" + System.Runtime.InteropServices.Marshal.GetLastWin32Error());
-                }
-                catch (Exception dex) { Log("诊断异常: " + dex.Message); }
-
+                // 原来的 identity / img0.jpg 试写探针已移除：它会把系统壁纸短暂改掉，
+                // 还让每次应用壁纸都多一次 4K 级的重绘与日志写入。
                 string src = Cfg.Resolve(Cfg.S("image", Paths.DefaultImage));
                 if (!File.Exists(src)) { Log("壁纸不存在: " + src); return; }
 
@@ -225,12 +270,9 @@ namespace WallpaperDeskClock
                             }
                         }
                         target = Paths.CacheWallpaper;
-                        // 先写内存再落盘，确保 GDI+ 不残留文件句柄
-                        using (var ms = new MemoryStream())
-                        {
-                            bmp.Save(ms, ImageFormat.Jpeg);
-                            File.WriteAllBytes(target, ms.ToArray());
-                        }
+                        // 直接落盘：不再经过 MemoryStream + ToArray()，省掉一整份 JPEG 字节数组
+                        // （1080p 壁纸约 250 KB，4K 壁纸可达数 MB，且会直接进 LOH）
+                        bmp.Save(target, ImageFormat.Jpeg);
                     }
                 }
 
@@ -259,6 +301,12 @@ namespace WallpaperDeskClock
                 Log("设置桌面壁纸: " + target + " 结果=" + ok + " err=" + err);
             }
             catch (Exception ex) { Log("设置壁纸失败: " + ex.Message); }
+            finally
+            {
+                // 壁纸应用完毕：大图、Graphics、GraphicsPath 都已释放，回收 LOH 并交还物理页
+                ApplyTickInterval();
+                TrimMemory();
+            }
         }
 
         // ---------- 托盘 ----------
@@ -298,39 +346,44 @@ namespace WallpaperDeskClock
             tray.DoubleClick += (s, e) => ShowSettings();
         }
 
-        // ---------- 设置窗口（同时充当任务栏入口） ----------
+        // ---------- 弹窗（懒加载：打开才创建，关闭即销毁） ----------
 
-        /// <summary>创建设置窗口；startMinimized=true 时最小化出现：任务栏有按钮，桌面不弹窗</summary>
-        void CreateSettingsWindow(bool startMinimized)
+        /// <summary>设置窗口按需创建：平时根本不存在，不占控件 / 字体 / GDI 句柄</summary>
+        void CreateSettingsWindow()
         {
             if (settingsForm != null && !settingsForm.IsDisposed) return;
             settingsForm = new SettingsForm(this);
             settingsForm.FormClosing += OnSettingsClosing;
-            settingsForm.Activated += (s, e) => { if (settingsForm != null) settingsForm.SyncFromApp(); };
-            if (startMinimized) settingsForm.WindowState = FormWindowState.Minimized;
+            settingsForm.FormClosed += OnSettingsClosed;
+            settingsForm.Activated += (s, e) => { if (settingsForm != null && !settingsForm.IsDisposed) settingsForm.SyncFromApp(); };
             settingsForm.Show();
         }
 
-        /// <summary>关闭按钮 / Alt+F4：隐藏窗口（任务栏图标一起消失），程序继续在托盘运行</summary>
+        /// <summary>关闭按钮 / Alt+F4 / 点 ✕：不再 e.Cancel 拦截，允许窗体真正关闭</summary>
         void OnSettingsClosing(object sender, FormClosingEventArgs e)
         {
-            if (exiting) return;
-            e.Cancel = true;
-            HideSettings();
+            // 不做任何拦截：窗体随后由 WinForms 正常 Close + Dispose
         }
 
-        /// <summary>隐藏设置窗口：窗口与任务栏按钮都消失，托盘图标保留</summary>
-        public void HideSettings()
+        void OnSettingsClosed(object sender, FormClosedEventArgs e)
+        {
+            settingsForm = null;     // 丢掉最后一个强引用
+            if (exiting) return;     // 退出流程里不再做整代压缩
+            TrimAfterUi();           // 窗体 Dispose 完成后再压缩堆、交还物理页
+        }
+
+        /// <summary>关闭设置窗口（等价于点标题栏 ✕）：真正 Close，而不是 Hide</summary>
+        public void CloseSettings()
         {
             if (settingsForm == null || settingsForm.IsDisposed) return;
             if (settingsForm.WindowState == FormWindowState.Minimized)
                 settingsForm.WindowState = FormWindowState.Normal;
-            settingsForm.Hide();
+            settingsForm.Close();
         }
 
         public void ShowSettings()
         {
-            if (settingsForm == null || settingsForm.IsDisposed) CreateSettingsWindow(false);
+            if (settingsForm == null || settingsForm.IsDisposed) CreateSettingsWindow();
             settingsForm.Show();
             if (settingsForm.WindowState == FormWindowState.Minimized)
                 settingsForm.WindowState = FormWindowState.Normal;
@@ -343,7 +396,7 @@ namespace WallpaperDeskClock
             if (wallpaperForm == null || wallpaperForm.IsDisposed)
             {
                 wallpaperForm = new WallpaperForm(this);
-                wallpaperForm.FormClosed += (s, e) => wallpaperForm = null;
+                wallpaperForm.FormClosed += (s, e) => { wallpaperForm = null; TrimAfterUi(); };
                 wallpaperForm.Show();
             }
             else
@@ -357,7 +410,7 @@ namespace WallpaperDeskClock
             if (statsForm == null || statsForm.IsDisposed)
             {
                 statsForm = new StatsForm();
-                statsForm.FormClosed += (s, e) => statsForm = null;
+                statsForm.FormClosed += (s, e) => { statsForm = null; TrimAfterUi(); };
                 statsForm.Show();
             }
             else
@@ -385,6 +438,12 @@ namespace WallpaperDeskClock
                 wallpaperForm.Hide();
                 wallpaperForm.Dispose();
                 wallpaperForm = null;
+            }
+            if (statsForm != null && !statsForm.IsDisposed)
+            {
+                statsForm.Hide();
+                statsForm.Dispose();
+                statsForm = null;
             }
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
             ExitThread();

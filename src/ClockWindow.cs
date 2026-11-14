@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
@@ -21,6 +21,10 @@ namespace WallpaperDeskClock
         bool editMode;
         bool contentPushed;
         int _lastSec = -1, _lastMin = -1, _lastDay = -1;
+
+        // 随字体一起创建 / 销毁的 GDI+ 对象：每秒重绘不再重复 new
+        SolidBrush brText, brShadow;
+        StringFormat sfFar, sfNear;
 
         // 拖动状态
         bool dragging;
@@ -115,14 +119,32 @@ namespace WallpaperDeskClock
             fDate = MakeFont(app.Cfg.S("font_date", "Consolas"), app.Cfg.F("size_date", 18f) * s);
             fWeek = MakeFont(app.Cfg.S("font_week", "SimHei"), app.Cfg.F("size_week", 18f) * s);
             fSec = MakeFont(app.Cfg.S("font_seconds", "Consolas"), app.Cfg.F("size_seconds", 18f) * s);
+
+            // 画刷与 StringFormat 只随字体生命周期创建一次
+            brText = new SolidBrush(col);
+            brShadow = new SolidBrush(Color.FromArgb(175, 0, 0, 0));
+            sfFar = new StringFormat(StringFormatFlags.NoWrap)
+            {
+                Alignment = StringAlignment.Far,
+                LineAlignment = StringAlignment.Center
+            };
+            sfNear = new StringFormat(StringFormatFlags.NoWrap)
+            {
+                Alignment = StringAlignment.Near,
+                LineAlignment = StringAlignment.Center
+            };
         }
 
         void DisposeFonts()
         {
-            if (fClock != null) fClock.Dispose();
-            if (fDate != null) fDate.Dispose();
-            if (fWeek != null) fWeek.Dispose();
-            if (fSec != null) fSec.Dispose();
+            if (fClock != null) { fClock.Dispose(); fClock = null; }
+            if (fDate != null) { fDate.Dispose(); fDate = null; }
+            if (fWeek != null) { fWeek.Dispose(); fWeek = null; }
+            if (fSec != null) { fSec.Dispose(); fSec = null; }
+            if (brText != null) { brText.Dispose(); brText = null; }
+            if (brShadow != null) { brShadow.Dispose(); brShadow = null; }
+            if (sfFar != null) { sfFar.Dispose(); sfFar = null; }
+            if (sfNear != null) { sfNear.Dispose(); sfNear = null; }
         }
 
         // ---------- 渲染 ----------
@@ -274,22 +296,16 @@ namespace WallpaperDeskClock
             else if (align == StringAlignment.Near) rect = new RectangleF(x, y - boxH / 2f, boxW, boxH);
             else rect = new RectangleF(x - boxW / 2f, y - boxH / 2f, boxW, boxH);
 
-            using (var sf = new StringFormat(StringFormatFlags.NoWrap))
+            var sf = align == StringAlignment.Near ? sfNear : sfFar;
+            if (sf == null) return;
+            if (shadow && brShadow != null)
             {
-                sf.Alignment = align;
-                sf.LineAlignment = StringAlignment.Center;
-                if (shadow)
-                {
-                    float off = Math.Max(1.5f, size / 24f);
-                    using (var sb = new SolidBrush(Color.FromArgb(175, 0, 0, 0)))
-                    {
-                        var sr = rect; sr.Offset(off, off);
-                        g.DrawString(text, font, sb, sr, sf);
-                    }
-                }
-                using (var b = new SolidBrush(col))
-                    g.DrawString(text, font, b, rect, sf);
+                float off = Math.Max(1.5f, size / 24f);
+                var sr = rect; sr.Offset(off, off);
+                g.DrawString(text, font, brShadow, sr, sf);
             }
+            if (brText != null)
+                g.DrawString(text, font, brText, rect, sf);
         }
 
         // ---------- 编辑模式 / 拖动 ----------
@@ -456,11 +472,13 @@ namespace WallpaperDeskClock
             PushLayered();
         }
 
-        /// <summary>每秒刷新（秒变化才重绘）</summary>
+        /// <summary>每秒刷新（只在显示内容真的变化时重绘）</summary>
         public void Tick()
         {
             var now = DateTime.Now;
             if (now.Second == _lastSec && now.Minute == _lastMin && now.Day == _lastDay) return;
+            // 不显示秒时，分钟与日期没变就完全不用重绘（配合 1000 ms 的定时器）
+            if (!app.Cfg.B("showseconds", true) && now.Minute == _lastMin && now.Day == _lastDay) return;
             _lastSec = now.Second; _lastMin = now.Minute; _lastDay = now.Day;
             Render();
             if (!editMode)

@@ -17,7 +17,6 @@ namespace WallpaperDeskClock
         public static string ResourceDir;      // resources/
         public static string LogDir;           // logs/
         public static string LogFile;          // logs/wallpaperdeskclock.log
-        public static string ProbeLog;         // logs/probe.log
         public static string CacheDir;         // cache/
         public static string CacheWallpaper;   // cache/_wallpaper_active.jpg
         public static string IconFile;         // WallpaperDeskClock.ico
@@ -37,7 +36,6 @@ namespace WallpaperDeskClock
 
             ConfigFile = Path.Combine(ConfigDir, "config.ini");
             LogFile = Path.Combine(LogDir, "wallpaperdeskclock.log");
-            ProbeLog = Path.Combine(LogDir, "probe.log");
             CacheWallpaper = Path.Combine(CacheDir, "_wallpaper_active.jpg");
             IconFile = Path.Combine(BaseDir, "WallpaperDeskClock.ico");
         }

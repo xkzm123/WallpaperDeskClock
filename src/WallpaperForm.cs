@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -21,6 +21,7 @@ namespace WallpaperDeskClock
         PictureBox preview;
         Label lblFolder, lblInfo, lblStatus;
         Bitmap previewBmp;
+        readonly List<Bitmap> thumbBitmaps = new List<Bitmap>();
         Button btnApply, btnDelete;
 
         public WallpaperForm(AppContext app)
@@ -178,6 +179,7 @@ namespace WallpaperDeskClock
             try
             {
                 thumbs.Images.Clear();
+                DisposeThumbs();       // ImageList 不会替我们释放原始位图，必须自己收
                 list.Items.Clear();
 
                 if (!Directory.Exists(folder))
@@ -201,7 +203,8 @@ namespace WallpaperDeskClock
                     if (n >= MaxItems) break;
                     var thumb = MakeThumb(f, ThumbW, ThumbH);
                     if (thumb == null) continue;
-                    thumbs.Images.Add(thumb);   // ImageList 会保留原始位图，不能提前释放
+                    thumbs.Images.Add(thumb);
+                    thumbBitmaps.Add(thumb);    // 自己记账，Reload / 关闭时统一释放
 
                     string name = Path.GetFileName(f);
                     bool isCur = cur != null && string.Equals(f, cur, StringComparison.OrdinalIgnoreCase);
@@ -331,10 +334,17 @@ namespace WallpaperDeskClock
             catch { }
         }
 
+        void DisposeThumbs()
+        {
+            foreach (var b in thumbBitmaps) { try { b.Dispose(); } catch { } }
+            thumbBitmaps.Clear();
+        }
+
         protected override void OnFormClosed(FormClosedEventArgs e)
         {
             if (previewBmp != null) { preview.Image = null; previewBmp.Dispose(); previewBmp = null; }
             if (thumbs != null) { thumbs.Images.Clear(); thumbs.Dispose(); }
+            DisposeThumbs();
             base.OnFormClosed(e);
         }
     }
