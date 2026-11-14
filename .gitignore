@@ -1,0 +1,17 @@
+# 编译产物
+*.exe
+*.pdb
+*.obj
+dist/
+_buildtest/
+
+# 运行时生成
+_wallpaper_active.jpg
+probe.log
+wallpaperdeskclock.log
+
+# 工具/编辑器
+.vs/
+*.user
+Thumbs.db
+desktop.ini
