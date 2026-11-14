@@ -3,14 +3,13 @@
 *.pdb
 *.obj
 dist/
-_buildtest/
 
-# 运行时生成
-_wallpaper_active.jpg
-probe.log
-wallpaperdeskclock.log
+# 运行时生成（首次运行会自动重建）
+logs/
+cache/
+config/config.ini
 
-# 工具/编辑器
+# 工具 / 编辑器
 .vs/
 *.user
 Thumbs.db

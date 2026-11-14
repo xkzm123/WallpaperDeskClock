@@ -2,7 +2,7 @@
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
-$out  = Join-Path $root 'assets'
+$out  = Join-Path $root 'docs'
 New-Item -ItemType Directory -Force -Path $out | Out-Null
 
 function C([int]$a,[int]$r,[int]$g,[int]$b){ [System.Drawing.Color]::FromArgb($a,$r,$g,$b) }
@@ -178,7 +178,7 @@ $fTag = F 'Consolas' 23 ''
 $bTag = New-Object System.Drawing.SolidBrush((C 165 150 200 255))
 $g.DrawString('C# / WinForms / UpdateLayeredWindow / 零第三方依赖',$fTag,$bTag,62,278)
 
-$chips = @('多显示器','点击穿透','不抢焦点','单文件 exe','约 0% CPU','托盘即配置')
+$chips = @('多显示器','点击穿透','不抢焦点','单文件 exe','约 0% CPU','任务栏入口')
 $cx = 62; $cy = 348
 $fChip = F 'Microsoft YaHei' 19 ''
 foreach($c in $chips){
@@ -201,13 +201,13 @@ $bmp.Save((Join-Path $out 'hero.png'),[System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
 
 # ---------------------------------------------------------------- 5. 设置面板
-$bmp,$g = New-Canvas 900 920
+$bmp,$g = New-Canvas 900 1000
 $bg2 = New-Object System.Drawing.Drawing2D.LinearGradientBrush(
-  (New-Object System.Drawing.Rectangle(0,0,900,920)), (C 255 234 240 250), (C 255 212 222 240),
+  (New-Object System.Drawing.Rectangle(0,0,900,1000)), (C 255 234 240 250), (C 255 212 222 240),
   [System.Drawing.Drawing2D.LinearGradientMode]::Vertical)
-$g.FillRectangle($bg2,0,0,900,920); $bg2.Dispose()
+$g.FillRectangle($bg2,0,0,900,1000); $bg2.Dispose()
 
-$dx = 60; $dy = 60; $dw = 780; $dh = 800
+$dx = 60; $dy = 50; $dw = 780; $dh = 900
 $sh = New-Object System.Drawing.SolidBrush((C 40 20 40 80))
 $ps = RoundPath ($dx+6) ($dy+12) $dw $dh 16
 $g.FillPath($sh,$ps); $ps.Dispose(); $sh.Dispose()
@@ -222,7 +222,7 @@ $g.FillRectangle($tb2,$dx,$dy,$dw,58); $tb2.Dispose()
 $g.ResetClip()
 $fWin = F 'Microsoft YaHei' 20 ''
 $bWin = New-Object System.Drawing.SolidBrush((C 255 60 64 74))
-$g.DrawString('壁纸桌面时钟 - 设置',$fWin,$bWin,($dx+20),($dy+16))
+$g.DrawString('壁纸桌面时钟',$fWin,$bWin,($dx+20),($dy+16))
 $g.DrawString('✕',$fWin,$bWin,($dx+$dw-34),($dy+16))
 $fWin.Dispose(); $bWin.Dispose()
 
@@ -237,6 +237,7 @@ $fSmall = F 'Microsoft YaHei' (11.5*$k) ''
 $bBody = New-Object System.Drawing.SolidBrush((C 255 32 34 40))
 $bGray = New-Object System.Drawing.SolidBrush((C 255 110 110 118))
 $bBlue = New-Object System.Drawing.SolidBrush((C 255 40 110 220))
+$bRed = New-Object System.Drawing.SolidBrush((C 255 190 60 60))
 
 function Chk([float]$x,[float]$y,[string]$text,[bool]$on){
   $s = 17*$k
@@ -257,7 +258,7 @@ function Chk([float]$x,[float]$y,[string]$text,[bool]$on){
 }
 
 $y = $oy + 52*$k
-Chk $ox $y '开机自动启动（默认关闭）' $true
+Chk $ox $y '开机自动启动（默认关闭）' $false
 $y += 34*$k
 $sep = New-Object System.Drawing.Pen((C 255 224 227 235),1)
 $g.DrawLine($sep,$ox,($y-6),($ox+390*$k),($y-6)); $sep.Dispose()
@@ -272,7 +273,7 @@ $g.DrawPath($cpen,$combo); $cpen.Dispose(); $combo.Dispose()
 $g.DrawString('全部显示器',$fBody,$bBody,($ox+10),($y+5*$k))
 $g.DrawString('▾',$fBody,$bGray,($ox+380*$k-26),($y+3*$k))
 $y += 36*$k
-Chk $ox $y '自定义布局模式（勾选后可用鼠标拖动时钟）' $true
+Chk $ox $y '自定义布局模式（勾选后可用鼠标拖动时钟）' $false
 $y += 30*$k
 $g.DrawString('提示：编辑模式下时钟窗口会置顶并显示蓝色边框；',$fSmall,$bGray,($ox+20*$k),($y-4))
 $g.DrawString('拖动结束后取消勾选即保存位置。',$fSmall,$bGray,($ox+20*$k),($y+22))
@@ -288,31 +289,43 @@ $y += 30*$k
 $track = New-Object System.Drawing.Pen((C 255 205 210 222),4)
 $g.DrawLine($track,$ox,($y+8),($ox+390*$k),($y+8)); $track.Dispose()
 $fillp = New-Object System.Drawing.Pen((C 255 40 110 220),4)
-$g.DrawLine($fillp,$ox,($y+8),($ox+195*$k),($y+8)); $fillp.Dispose()
+$g.DrawLine($fillp,$ox,($y+8),($ox+150*$k),($y+8)); $fillp.Dispose()
 $thumb = New-Object System.Drawing.SolidBrush((C 255 255 255 255))
-$g.FillEllipse($thumb,($ox+195*$k-9),($y-1),18,18)
+$g.FillEllipse($thumb,($ox+150*$k-9),($y-1),18,18)
 $tpen = New-Object System.Drawing.Pen((C 255 40 110 220),1.6)
-$g.DrawEllipse($tpen,($ox+195*$k-9),($y-1),18,18)
+$g.DrawEllipse($tpen,($ox+150*$k-9),($y-1),18,18)
 $thumb.Dispose(); $tpen.Dispose()
 $y += 46*$k
-$btn1 = RoundPath $ox $y (140*$k) (32*$k) 5
-$b1 = New-Object System.Drawing.SolidBrush((C 255 242 244 249))
-$g.FillPath($b1,$btn1); $b1.Dispose()
-$b1p = New-Object System.Drawing.Pen((C 255 205 210 222),1.2)
-$g.DrawPath($b1p,$btn1); $b1p.Dispose(); $btn1.Dispose()
-$g.DrawString('恢复默认布局',$fBody,$bBody,($ox+18),($y+7*$k))
-$btn2 = RoundPath ($ox+286*$k) $y (100*$k) (32*$k) 5
-$b2 = New-Object System.Drawing.SolidBrush((C 255 40 110 220))
-$g.FillPath($b2,$btn2); $b2.Dispose(); $btn2.Dispose()
-$bWhite = New-Object System.Drawing.SolidBrush((C 255 255 255 255))
-$g.DrawString('关闭',$fBody,$bWhite,($ox+320*$k),($y+7*$k))
-$bWhite.Dispose()
-$y += 52*$k
+
+function Btn([float]$x,[float]$y,[float]$w,[string]$text,[bool]$primary){
+  $b = RoundPath $x $y ($w*$k) (32*$k) 5
+  $fill = New-Object System.Drawing.SolidBrush((C 255 242 244 249))
+  if($primary){ $fill = New-Object System.Drawing.SolidBrush((C 255 40 110 220)) }
+  $g.FillPath($fill,$b); $fill.Dispose()
+  if(-not $primary){
+    $p = New-Object System.Drawing.Pen((C 255 205 210 222),1.2)
+    $g.DrawPath($p,$b); $p.Dispose()
+  }
+  $b.Dispose()
+  $col = $bBody
+  if($primary){ $col = New-Object System.Drawing.SolidBrush((C 255 255 255 255)) }
+  $sz = $g.MeasureString($text,$fBody)
+  $g.DrawString($text,$fBody,$col,($x + ($w*$k - $sz.Width)/2),($y+7*$k))
+}
+
+Btn $ox $y 140 '恢复默认布局' $false
+Btn ($ox+152*$k) $y 120 '打开配置目录' $false
+Btn ($ox+284*$k) $y 100 '关闭' $false
+$y += 44*$k
+Btn $ox $y 140 '退出程序' $false
+$g.DrawString('关闭只收回任务栏，程序继续运行。',$fSmall,$bGray,($ox+152*$k),($y+2))
+$g.DrawString('重新打开：点任务栏或托盘图标。',$fSmall,$bGray,($ox+152*$k),($y+24))
+$y += 54*$k
 $bGreen = New-Object System.Drawing.SolidBrush((C 255 60 130 80))
-$g.DrawString('编辑模式已关闭，布局已保存',$fSmall,$bGreen,$ox,$y)
+$g.DrawString('已恢复默认布局',$fSmall,$bGreen,$ox,$y)
 $bGreen.Dispose()
 
-$fBody.Dispose();$fSmall.Dispose();$bBody.Dispose();$bGray.Dispose();$bBlue.Dispose()
+$fBody.Dispose();$fSmall.Dispose();$bBody.Dispose();$bGray.Dispose();$bBlue.Dispose();$bRed.Dispose()
 $g.Dispose()
 $bmp.Save((Join-Path $out 'settings.png'),[System.Drawing.Imaging.ImageFormat]::Png)
 $bmp.Dispose()
@@ -340,7 +353,7 @@ $fWin = F 'Microsoft YaHei' 19 ''
 $bWin = New-Object System.Drawing.SolidBrush((C 255 60 64 74))
 $g.DrawString('资源占用 / 运行状态',$fWin,$bWin,($dx+18),($dy+14))
 $fWin.Dispose(); $bWin.Dispose()
-$rows = @(@('CPU 占用','0.0 %'),@('内存占用','11.8 MB'),@('线程数','5'),@('句柄数','138'),@('运行时长','00:12:31'))
+$rows = @(@('CPU 占用','0.0 %'),@('内存占用','41.2 MB'),@('线程数','6'),@('句柄数','161'),@('运行时长','00:12:31'))
 $fLab = F 'Microsoft YaHei' 22 ''
 $fVal2 = F 'Consolas' 24 'b'
 $bLab = New-Object System.Drawing.SolidBrush((C 255 100 100 108))

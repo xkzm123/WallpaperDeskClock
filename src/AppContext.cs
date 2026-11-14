@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -21,11 +21,12 @@ namespace WallpaperDeskClock
         SettingsForm settingsForm;
         StatsForm statsForm;
         string lastDisplaySignature = "";
+        bool exiting;
 
         public AppContext()
         {
-            Cfg.BaseDir = Path.GetDirectoryName(Application.ExecutablePath);
-            string cfgPath = Path.Combine(Cfg.BaseDir, "config.ini");
+            Cfg.BaseDir = Paths.BaseDir;
+            string cfgPath = Paths.ConfigFile;
             Cfg.Load(cfgPath);
             if (Cfg.FilePath == null) Cfg.FilePath = cfgPath;
 
@@ -33,6 +34,7 @@ namespace WallpaperDeskClock
 
             BuildWindows();
             SetupTray();
+            CreateSettingsWindow(true);   // 任务栏入口：最小化出现，不弹窗
 
             tick = new System.Windows.Forms.Timer { Interval = 200 };
             tick.Tick += (s, e) => { foreach (var w in windows) w.Tick(); };
@@ -53,7 +55,7 @@ namespace WallpaperDeskClock
         {
             try
             {
-                File.AppendAllText(Path.Combine(Cfg.BaseDir, "wallpaperdeskclock.log"),
+                File.AppendAllText(Paths.LogFile,
                     DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + msg + "\r\n", Encoding.UTF8);
             }
             catch { }
@@ -182,7 +184,7 @@ namespace WallpaperDeskClock
                 }
                 catch (Exception dex) { Log("诊断异常: " + dex.Message); }
 
-                string src = Cfg.Resolve(Cfg.S("image", "wallpaper.jpg"));
+                string src = Cfg.Resolve(Cfg.S("image", Paths.DefaultImage));
                 if (!File.Exists(src)) { Log("壁纸不存在: " + src); return; }
 
                 var scr = Screen.PrimaryScreen.Bounds;
@@ -219,7 +221,7 @@ namespace WallpaperDeskClock
                                 }
                             }
                         }
-                        target = Path.Combine(Cfg.BaseDir, "_wallpaper_active.jpg");
+                        target = Paths.CacheWallpaper;
                         // 先写内存再落盘，确保 GDI+ 不残留文件句柄
                         using (var ms = new MemoryStream())
                         {
@@ -262,7 +264,7 @@ namespace WallpaperDeskClock
         {
             tray = new NotifyIcon
             {
-                Icon = SystemIcons.Application,
+                Icon = Paths.LoadAppIcon(),
                 Text = "壁纸桌面时钟",
                 Visible = true
             };
@@ -283,7 +285,7 @@ namespace WallpaperDeskClock
             });
             menu.Items.Add("打开配置目录", null, (s, e) =>
             {
-                try { Process.Start("explorer.exe", Cfg.BaseDir); } catch { }
+                try { Process.Start("explorer.exe", Paths.ConfigDir); } catch { }
             });
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("退出", null, (s, e) => ExitApp());
@@ -292,18 +294,35 @@ namespace WallpaperDeskClock
             tray.DoubleClick += (s, e) => ShowSettings();
         }
 
-        void ShowSettings()
+        // ---------- 设置窗口（同时充当任务栏入口） ----------
+
+        /// <summary>创建设置窗口；startMinimized=true 时最小化出现：任务栏有按钮，桌面不弹窗</summary>
+        void CreateSettingsWindow(bool startMinimized)
         {
-            if (settingsForm == null || settingsForm.IsDisposed)
-            {
-                settingsForm = new SettingsForm(this);
-                settingsForm.FormClosed += (s, e) => settingsForm = null;
-                settingsForm.Show();
-            }
-            else
-            {
-                settingsForm.Activate();
-            }
+            if (settingsForm != null && !settingsForm.IsDisposed) return;
+            settingsForm = new SettingsForm(this);
+            settingsForm.FormClosing += OnSettingsClosing;
+            settingsForm.Activated += (s, e) => { if (settingsForm != null) settingsForm.SyncFromApp(); };
+            if (startMinimized) settingsForm.WindowState = FormWindowState.Minimized;
+            settingsForm.Show();
+        }
+
+        /// <summary>关闭按钮 / Alt+F4 只是收回任务栏，程序继续运行</summary>
+        void OnSettingsClosing(object sender, FormClosingEventArgs e)
+        {
+            if (exiting) return;
+            e.Cancel = true;
+            if (settingsForm != null) settingsForm.WindowState = FormWindowState.Minimized;
+        }
+
+        public void ShowSettings()
+        {
+            if (settingsForm == null || settingsForm.IsDisposed) CreateSettingsWindow(false);
+            if (settingsForm.WindowState == FormWindowState.Minimized)
+                settingsForm.WindowState = FormWindowState.Normal;
+            settingsForm.Show();
+            settingsForm.Activate();
+            settingsForm.SyncFromApp();
         }
 
         void ShowStats()
@@ -320,13 +339,20 @@ namespace WallpaperDeskClock
             }
         }
 
-        void ExitApp()
+        public void ExitApp()
         {
+            exiting = true;
             SaveAllLayouts();
             tick.Stop();
             displayWatch.Stop();
             foreach (var w in windows.ToArray()) { w.Hide(); w.Dispose(); }
             windows.Clear();
+            if (settingsForm != null && !settingsForm.IsDisposed)
+            {
+                settingsForm.Hide();
+                settingsForm.Dispose();
+                settingsForm = null;
+            }
             if (tray != null) { tray.Visible = false; tray.Dispose(); }
             ExitThread();
         }

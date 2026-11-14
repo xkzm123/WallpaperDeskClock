@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -98,6 +98,72 @@ namespace WallpaperDeskClock
                 if (i <= 0) continue;
                 kv[t.Substring(0, i).Trim()] = t.Substring(i + 1).Trim();
             }
+        }
+
+        /// <summary>首次运行时写出带注释的默认配置（目录由 Paths 保证存在）</summary>
+        public static void EnsureDefault(string path)
+        {
+            try
+            {
+                if (File.Exists(path)) return;
+                File.WriteAllText(path, DefaultText, new UTF8Encoding(false));
+            }
+            catch { }
+        }
+
+        static readonly string[] DefaultLines = new string[]
+        {
+            "# ============================================================",
+            "#  壁纸桌面时钟 配置文件",
+            "#  位置：config/config.ini（首次运行自动生成）",
+            "#  布局相关项由程序自动写入，无需手工编辑",
+            "# ============================================================",
+            "",
+            "# 背景图（相对 exe 目录或绝对路径）",
+            "image=resources/wallpaper.jpg",
+            "",
+            "# 显示位置：all = 全部显示器 / 0 = 显示器1 / 1 = 显示器2",
+            "displays=all",
+            "",
+            "# 时间格式：use12h=0 -> HH:mm / use12h=1 -> hh:mm",
+            "use12h=0",
+            "dateformat=yyyy.MM.dd",
+            "",
+            "# 文字颜色与阴影",
+            "color=#F2F2F2",
+            "shadow=1",
+            "",
+            "# 右下角柔和压暗（烘焙进壁纸，输出到 cache/）",
+            "vignette=1",
+            "vignette_alpha=78",
+            "",
+            "# 显示开关",
+            "showdate=1",
+            "showweek=1",
+            "showseconds=1",
+            "",
+            "# 窗口内部相对布局（一般不用改）",
+            "rel_right=0.831",
+            "rel_clock_y=0.323",
+            "rel_date_y=0.695",
+            "gap_seconds=14",
+            "gap_week=26",
+            "seconds_dy=10",
+            "",
+            "# 字体与基础字号（像素，实际字号 = 基础字号 x 缩放）",
+            "font_clock=Bahnschrift",
+            "size_clock=64",
+            "font_date=Consolas",
+            "size_date=18",
+            "font_week=SimHei",
+            "size_week=18",
+            "font_seconds=Consolas",
+            "size_seconds=18",
+        };
+
+        public static string DefaultText
+        {
+            get { return string.Join(Environment.NewLine, DefaultLines) + Environment.NewLine; }
         }
 
         public void Save()
@@ -277,18 +343,20 @@ namespace WallpaperDeskClock
         [STAThread]
         static void Main()
         {
-            // 启动最早期探针：验证进程本身是否有壁纸设置权限
+            Paths.Init();
+            Config.EnsureDefault(Paths.ConfigFile);
+
+            // 启动最早期探针：验证进程本身是否有壁纸设置权限（结果写入 logs/probe.log）
             try
             {
-                string dir = Path.GetDirectoryName(Application.ExecutablePath);
                 int r0 = Native.SystemParametersInfo(Native.SPI_SETDESKWALLPAPER, 0,
                     @"C:\Windows\Web\Wallpaper\Windows\img0.jpg", Native.SPIF_UPDATEINIFILE | Native.SPIF_SENDCHANGE);
-                File.WriteAllText(Path.Combine(dir, "probe.log"),
-                    "early probe=" + r0 + " err=" + Marshal.GetLastWin32Error() + "\r\n");
+                File.WriteAllText(Paths.ProbeLog,
+                    "early probe=" + r0 + " err=" + Marshal.GetLastWin32Error() + Environment.NewLine);
             }
             catch (Exception ex)
             {
-                try { File.WriteAllText(Path.Combine(Path.GetDirectoryName(Application.ExecutablePath), "probe.log"), "probe ex: " + ex.Message); } catch { }
+                try { File.WriteAllText(Paths.ProbeLog, "probe ex: " + ex.Message); } catch { }
             }
 
             // DPI 由 manifest 声明，这里不再调用 SetProcessDPIAware

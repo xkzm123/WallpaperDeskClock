@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -21,12 +21,14 @@ namespace WallpaperDeskClock
         public SettingsForm(AppContext app)
         {
             this.app = app;
-            Text = "壁纸桌面时钟 - 设置";
+            Text = "壁纸桌面时钟";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = false;
-            MinimizeBox = false;
+            MinimizeBox = true;
+            ShowInTaskbar = true;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(430, 430);
+            ClientSize = new Size(430, 546);
+            Icon = Paths.LoadAppIcon();
             Font = new Font("Microsoft YaHei", 9.5f);
             BackColor = Color.FromArgb(250, 250, 252);
 
@@ -176,16 +178,49 @@ namespace WallpaperDeskClock
             };
             Controls.Add(btnReset);
 
+            var btnOpenCfg = new Button
+            {
+                Text = "打开配置目录",
+                Location = new Point(176, y),
+                Size = new Size(120, 32)
+            };
+            btnOpenCfg.Click += (s, e) => { try { Process.Start("explorer.exe", Paths.ConfigDir); } catch { } };
+            Controls.Add(btnOpenCfg);
+
             var btnClose = new Button
             {
                 Text = "关闭",
                 Location = new Point(310, y),
-                Size = new Size(100, 32),
-                DialogResult = DialogResult.OK
+                Size = new Size(100, 32)
             };
-            btnClose.Click += (s, e) => Close();
+            btnClose.Click += (s, e) => { WindowState = FormWindowState.Minimized; };
             Controls.Add(btnClose);
-            y += 46;
+            y += 44;
+
+            var btnExit = new Button
+            {
+                Text = "退出程序",
+                Location = new Point(24, y),
+                Size = new Size(140, 32),
+                ForeColor = Color.FromArgb(190, 60, 60)
+            };
+            btnExit.Click += (s, e) =>
+            {
+                if (MessageBox.Show("确定退出壁纸桌面时钟？桌面时钟会一并消失。", "退出程序",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                    app.ExitApp();
+            };
+            Controls.Add(btnExit);
+
+            var lblTaskbar = new Label
+            {
+                Text = "关闭只收回任务栏，程序继续运行。\n重新打开：点任务栏或托盘图标。",
+                Location = new Point(176, y),
+                Size = new Size(252, 40),
+                ForeColor = Color.FromArgb(110, 110, 118)
+            };
+            Controls.Add(lblTaskbar);
+            y += 48;
 
             lblHint = new Label
             {

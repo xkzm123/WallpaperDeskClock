@@ -1,23 +1,24 @@
 <div align="center">
 
-<img src="assets/logo.png" width="112" alt="WallpaperDeskClock logo" />
+<img src="docs/logo.png" width="112" alt="WallpaperDeskClock logo" />
 
 # 壁纸桌面时钟 · WallpaperDeskClock
 
-**把时间和日期真正画进桌面壁纸 —— 34 KB、零依赖、点击穿透的 Windows 桌面时钟**
+**把时间和日期真正画进桌面壁纸 —— 62 KB、零依赖、点击穿透的 Windows 桌面时钟**
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](#-快速开始)
 [![.NET](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4?logo=dotnet&logoColor=white)](#-源码编译)
-[![Size](https://img.shields.io/badge/exe-34%20KB-success)](#-为什么这么小)
+[![Version](https://img.shields.io/badge/version-1.1.0-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
+[![Size](https://img.shields.io/badge/exe-62%20KB-success)](#-为什么这么小)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#-为什么这么小)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/xkzm123/WallpaperDeskClock?style=social)](https://github.com/xkzm123/WallpaperDeskClock/stargazers)
 
-[效果预览](#-截图) · [快速开始](#-快速开始) · [配置详解](#-配置详解) · [工作原理](#-工作原理) · [常见问题](#-常见问题)
+[效果预览](#-截图) · [快速开始](#-快速开始) · [使用说明](#-使用说明) · [配置详解](#-配置详解) · [目录结构](#-目录结构) · [工作原理](#-工作原理) · [常见问题](#-常见问题)
 
 </div>
 
-<img src="assets/hero.png" alt="WallpaperDeskClock 效果横幅" width="100%" />
+<img src="docs/hero.png" alt="WallpaperDeskClock 效果横幅" width="100%" />
 
 ---
 
@@ -34,8 +35,10 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 
 结果就是：它看起来像壁纸的一部分，而不是一个趴在桌面上的程序。
 
+而**管理入口**放在你顺手的地方：任务栏一个图标、托盘一个图标，点开就是设置，不占用桌面、不打断时钟。
+
 ```text
-34 KB 单文件 exe   ·   常驻内存约 12 MB   ·   空闲 CPU 0.0%   ·   无任何第三方依赖
+62 KB 单文件 exe   ·   常驻内存约 40 MB   ·   空闲 CPU 0.0%   ·   无任何第三方依赖
 ```
 
 ---
@@ -44,22 +47,22 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 
 **桌面效果**（1920×1080，右下角默认位置）
 
-<img src="assets/preview.png" alt="桌面效果预览" width="100%" />
+<img src="docs/preview.png" alt="桌面效果预览" width="100%" />
 
 **局部特写**：`HH:mm` + 秒 + 日期 + 星期，带柔和的投影
 
-<img src="assets/preview-zoom.png" alt="时钟局部特写" width="70%" />
+<img src="docs/preview-zoom.png" alt="时钟局部特写" width="70%" />
 
-| 自定义布局模式 | 设置面板 |
+| 设置面板（任务栏图标 / 托盘图标均可打开） | 自定义布局模式 |
 | :---: | :---: |
-| <img src="assets/edit-mode.png" alt="编辑模式" width="100%" /> | <img src="assets/settings.png" alt="设置面板" width="100%" /> |
-| 勾选后窗口置顶 + 蓝色边框，拖动即定位，取消勾选自动落盘 | 开机自启、显示器选择、布局编辑、字号缩放一站搞定 |
+| <img src="docs/settings.png" alt="设置面板" width="100%" /> | <img src="docs/edit-mode.png" alt="编辑模式" width="100%" /> |
+| 开机自启、显示器选择、布局编辑、字号缩放、退出程序 | 勾选后窗口置顶 + 蓝色边框，拖动即定位，取消勾选自动落盘 |
 
 | 资源占用 / 运行状态 |
 | :---: |
-| <img src="assets/stats.png" alt="资源占用面板" width="60%" /> |
+| <img src="docs/stats.png" alt="资源占用面板" width="60%" /> |
 
-> 上图为界面示意，数值取自日常运行区间（内存 ~12 MB，空闲 CPU 0.0%）。
+> 界面截图为真实控件布局；数值为日常运行区间示意（内存约 35–45 MB，空闲 CPU 0.0%）。
 
 ---
 
@@ -70,14 +73,16 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 | 🪟 **真·分层透明** | `UpdateLayeredWindow` + 32bpp ARGB，字体抗锯齿边缘无锯齿、无黑边 |
 | 🖱️ **点击穿透** | `WS_EX_TRANSPARENT`，图标、右键菜单、拖选文件全部照常 |
 | 🚫 **不抢焦点** | `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，不进 Alt+Tab、不打断游戏全屏 |
+| 📌 **任务栏入口** | 启动后任务栏常驻一个图标：**最小化出现，桌面不弹窗**；点一下就是设置界面 |
+| 🧲 **关闭即收回** | 关闭设置窗口只是收回任务栏，程序继续运行；退出走「退出程序」或托盘菜单 |
 | 🖥️ **多显示器** | 每块屏一个独立时钟，`all` 或指定第 N 块；拔插显示器 2 秒内自动重建 |
 | 📐 **比例坐标布局** | 位置以屏幕百分比存储，换分辨率 / 缩放比例后不跑位 |
 | 🎨 **壁纸自动烘焙** | 等比铺满 + 右下角径向压暗（`vignette`），深色浅色壁纸都能看清 |
-| 🖐️ **拖动即定位** | 编辑模式拖动，退出编辑自动写回 `config.ini`，无需手改坐标 |
+| 🖐️ **拖动即定位** | 编辑模式拖动，退出编辑自动写回 `config/config.ini`，无需手改坐标 |
 | ⚡ **几乎零开销** | 200 ms 心跳，但**只在秒数变化时重绘**；无动画、无 GPU 渲染 |
-| 🔁 **单实例** | 命名互斥体，重复启动直接提示，不会叠出两个时钟 |
+| 🗂️ **干净的目录** | 根目录只有 exe + 图标 + README，配置/资源/日志/缓存各归其位 |
 | 🧷 **自启自愈** | 移动程序目录后，注册表启动项路径会在下次启动时自动改写 |
-| 🧰 **托盘即配置** | 设置 / 资源占用 / 重新应用壁纸 / 恢复默认布局 / 打开配置目录 / 退出 |
+| 🔁 **单实例** | 命名互斥体，重复启动直接提示，不会叠出两个时钟 |
 | 📦 **零依赖单文件** | 只用 .NET Framework 自带的 WinForms + GDI+，`csc` 一条命令出 exe |
 
 ---
@@ -86,43 +91,79 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 
 ### 方式一：直接运行（推荐）
 
-1. 到 [Releases](https://github.com/xkzm123/WallpaperDeskClock/releases/latest) 下载 `WallpaperDeskClock.exe`；
-2. 和 `config.ini`、`wallpaper.jpg` 放在**同一个目录**；
-3. 双击运行，托盘出现图标即生效；
-4. 托盘图标 **双击** = 打开设置，**右键** = 全部菜单。
+1. 到 [Releases](https://github.com/xkzm123/WallpaperDeskClock/releases/latest) 下载 `WallpaperDeskClock-v1.1.0-win.zip` 并解压；
+2. 双击 `WallpaperDeskClock.exe`；
+3. 任务栏出现蓝色时钟图标（**最小化状态**，不会弹窗），桌面右下角出现时钟；
+4. 点任务栏图标 / 双击托盘图标 = 打开设置。
 
 > 不需要安装，不需要管理员权限，`.NET Framework 4.x` 是 Windows 10/11 自带的。
+> `config/`、`logs/`、`cache/` 会在首次运行时自动创建，`config/config.ini` 也会自动生成。
 
 ### 方式二：源码编译
 
 ```bat
-:: 仓库根目录双击，或命令行执行
-build.bat
-:: 产物：dist\WallpaperDeskClock.exe
+:: 仓库根目录执行
+build\build.bat
+:: 产物：WallpaperDeskClock.exe（就在根目录）
 ```
 
-不想用脚本，一条 `csc` 也能搞定：
+不想用脚本，一条 `csc` 也能搞定（`WallpaperDeskClock.ico` 缺失时先跑 `build\gen-icon.ps1`）：
 
 ```bat
 %WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe /target:winexe /optimize+ ^
-  /out:WallpaperDeskClock.exe /win32manifest:src\app.manifest ^
+  /out:WallpaperDeskClock.exe /win32icon:WallpaperDeskClock.ico ^
+  /win32manifest:src\app.manifest ^
   /r:System.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll ^
-  src\Program.cs src\AppContext.cs src\ClockWindow.cs src\Dialogs.cs
+  src\Program.cs src\AppContext.cs src\ClockWindow.cs src\Dialogs.cs ^
+  src\Paths.cs src\AssemblyInfo.cs
 ```
 
-用 Visual Studio 的话，新建一个 **Windows Forms App (.NET Framework)** 项目，把这 4 个 `.cs` 和 `app.manifest` 丢进去即可。
+用 Visual Studio 的话，新建一个 **Windows Forms App (.NET Framework)** 项目，把 `src` 里的 `.cs` 和 `app.manifest` 丢进去即可。
+
+---
+
+## 🕹 使用说明
+
+### 启动后发生什么
+
+| 位置 | 表现 |
+| --- | --- |
+| 桌面 | 每块显示器右下角一个透明时钟，**点击穿透**，不挡图标操作 |
+| 任务栏 | 一个「壁纸桌面时钟」图标（窗口处于最小化，**不弹窗**） |
+| 托盘 | 一个同款图标，右键有完整菜单 |
+
+### 三个入口，随你用
+
+- **任务栏图标**：点一下 → 设置界面；再点「关闭」→ 收回任务栏。
+- **托盘图标**：双击 → 设置；右键 → 设置 / 资源占用 / 重新应用壁纸 / 恢复默认布局 / 打开配置目录 / 退出。
+- **设置面板**：`退出程序` 按钮（带确认框）。
+
+### 关闭 ≠ 退出
+
+点设置窗口的 `✕` 或「关闭」，窗口只会**最小化回任务栏**，时钟继续走。真正退出只有两条路：
+
+1. 设置面板里的 **退出程序**；
+2. 托盘右键 → **退出**。
+
+### 进程名是什么？
+
+任务管理器「应用」里显示 **壁纸桌面时钟**，详细信息里的进程名是 **`WallpaperDeskClock.exe`**。
+
+它不是 **桌面窗口管理器（`dwm.exe`）** —— `dwm.exe` 是 Windows 自己的合成器进程，本程序只是把透明窗口贴在桌面上。之所以看起来"混在桌面里"，是因为窗口 Z 序被钉在 `HWND_BOTTOM` 且完全透明穿透，任务管理器里仍然是一个独立的 `WallpaperDeskClock.exe`。
 
 ---
 
 ## ⚙️ 配置详解
 
-所有配置都在 `config.ini`，改完在托盘菜单点 **「重新应用桌面壁纸」** 或重启程序生效（设置面板里的改动会即时生效并自动保存）。
+配置文件位置：**`config/config.ini`**（首次运行自动生成，带注释；模板见 `config/config.sample.ini`）。
+
+改完在托盘菜单点 **「重新应用桌面壁纸」** 或重启程序生效；设置面板里的改动会即时生效并自动保存。
 
 ### 基础
 
 | 键 | 默认值 | 说明 |
 | --- | --- | --- |
-| `image` | `wallpaper.jpg` | 背景图路径，相对本目录或绝对路径 |
+| `image` | `resources/wallpaper.jpg` | 背景图路径，相对 exe 目录或绝对路径 |
 | `displays` | `all` | `all` = 全部显示器；`0` = 第 1 块；`1` = 第 2 块 |
 | `use12h` | `0` | `0` → `HH:mm`；`1` → `hh:mm` |
 | `dateformat` | `yyyy.MM.dd` | 任意 .NET 日期格式串，如 `M月d日 ddd` |
@@ -166,9 +207,54 @@ build.bat
 image=D:\Pictures\my-wallpaper.jpg
 ```
 
-程序不会改动你的原图，只会在同目录生成 `_wallpaper_active.jpg`（烘焙后的副本）并设为桌面壁纸。
+程序不会改动你的原图，只在 `cache/` 生成 `_wallpaper_active.jpg`（烘焙后的副本）并设为桌面壁纸。
 
-> 截图里用的演示壁纸是 [`assets/demo-wallpaper.png`](assets/demo-wallpaper.png)，可以直接拿去试效果。
+> 截图里用的演示壁纸是 [`docs/demo-wallpaper.png`](docs/demo-wallpaper.png)，可以直接拿去试效果。
+
+---
+
+## 🗂 目录结构
+
+根目录保持干净：**只放 exe、图标、README**，其余按用途分目录。
+
+```text
+WallpaperDeskClock/
+├── WallpaperDeskClock.exe      # 构建产物（不入库），双击即用
+├── WallpaperDeskClock.ico      # 图标：exe / 任务栏 / 窗口 / 托盘
+├── README.md
+├── LICENSE
+├── src/                        # 源码（6 个文件，约 1500 行）
+│   ├── Program.cs              # Win32 声明、Config 读写、布局存储、开机自启、入口
+│   ├── AppContext.cs           # 托盘、任务栏入口、定时器、多显示器、壁纸烘焙
+│   ├── ClockWindow.cs          # 分层透明窗口：渲染 + UpdateLayeredWindow + 拖动
+│   ├── Dialogs.cs              # 设置面板、资源占用面板
+│   ├── Paths.cs                # 目录约定 + 自动建目录 + 图标加载
+│   ├── AssemblyInfo.cs         # 版本资源（任务管理器显示名）
+│   └── app.manifest            # asInvoker + Per-Monitor V2 DPI 感知
+├── build/
+│   ├── build.bat               # 一键编译 → 根目录 exe
+│   ├── gen-icon.ps1            # 生成多尺寸 ico（16–256）
+│   └── gen-readme-assets.ps1   # 生成 docs/ 下的 README 配图
+├── config/
+│   └── config.sample.ini       # 配置模板（运行时用的是 config.ini）
+├── resources/
+│   └── wallpaper.jpg           # 示例壁纸
+├── docs/                       # README 配图
+├── logs/                       # 运行时生成：wallpaperdeskclock.log / probe.log
+└── cache/                      # 运行时生成：_wallpaper_active.jpg
+```
+
+### 运行时目录
+
+| 路径 | 内容 | 谁创建 |
+| --- | --- | --- |
+| `config/config.ini` | 用户配置（含各屏布局） | 首次运行自动生成 |
+| `resources/wallpaper.jpg` | 默认壁纸 | 随包提供 |
+| `logs/wallpaperdeskclock.log` | 运行日志（诊断 / 壁纸设置结果） | 自动 |
+| `logs/probe.log` | 启动期壁纸权限探针 | 自动 |
+| `cache/_wallpaper_active.jpg` | 烘焙后的壁纸副本 | 自动 |
+
+> `logs/`、`cache/`、`config/config.ini` 已在 `.gitignore` 中，不会污染仓库。
 
 ---
 
@@ -179,24 +265,26 @@ image=D:\Pictures\my-wallpaper.jpg
 ```mermaid
 flowchart LR
     subgraph PROC["WallpaperDeskClock.exe"]
-        MAIN["Program.Main<br/>单实例互斥体"]
+        MAIN["Program.Main<br/>Paths.Init + 默认配置"]
         APP["AppContext<br/>托盘 / 定时器 / 壁纸"]
+        SET["SettingsForm<br/>常驻窗口 = 任务栏入口"]
         W1["ClockWindow<br/>显示器 1"]
         W2["ClockWindow<br/>显示器 2"]
-        SET["SettingsForm"]
         STAT["StatsForm"]
     end
 
-    CFG[("config.ini")] --> APP
     MAIN --> APP
+    CFG[("config/config.ini")] --> APP
     APP --> W1
     APP --> W2
     APP --> SET
     APP --> STAT
+    SET -->|"关闭 = 最小化"| SET
     W1 --> R["GDI+ 渲染<br/>32bpp ARGB"]
     R --> UL["UpdateLayeredWindow<br/>ULW_ALPHA"]
     UL --> DESK["桌面层<br/>HWND_BOTTOM"]
     APP --> BAKE["壁纸烘焙<br/>等比铺满 + 径向压暗"]
+    BAKE --> CACHE[("cache/_wallpaper_active.jpg")]
     BAKE --> SPI["SPI_SETDESKWALLPAPER"]
 ```
 
@@ -221,68 +309,73 @@ sequenceDiagram
     end
 ```
 
-三个关键点：
+### 任务栏入口是怎么做的
 
-1. **分层窗口三步曲**：`GetDC(0)` 拿屏幕 DC → `CreateCompatibleDC` + `SelectObject(hBitmap)` → `UpdateLayeredWindow` 带 `BLENDFUNCTION{AC_SRC_OVER, AC_SRC_ALPHA}` 推屏，最后**逐个释放** `SelectObject / DeleteObject / DeleteDC / ReleaseDC`，长时间运行不漏 GDI 句柄。
-2. **为什么重绘只在秒变化时**：心跳 200 ms 是为了让秒的跳变看起来不超过 200 ms 延迟，而真正的绘制被 `_lastSec / _lastMin / _lastDay` 三重比较挡住 —— 空闲时 CPU 基本为 0。
-3. **为什么要把压暗烘焙进壁纸**：窗口本身是透明的，无法「在壁纸之上盖一层渐变」而不影响图标。所以先在内存里把壁纸等比铺满 + 用 `PathGradientBrush` 画一个柔和的径向黑（`vignette_alpha`），写成 `_wallpaper_active.jpg` 再交给系统 —— 这样压暗是壁纸的一部分，穿透与图标都不受影响。
+不需要额外的宿主进程，也没有第二个窗口：
+
+1. `SettingsForm` 在启动时**只创建一次**，`Show()` 之前先把 `WindowState` 设成 `Minimized`；
+2. 于是任务栏立刻出现一个按钮，桌面上却什么都不显示（最小化窗口不占屏）；
+3. 用户点任务栏按钮 → Windows 还原窗口 → 就是设置界面；
+4. `FormClosing` 里 `e.Cancel = true` + `WindowState = Minimized`，**关闭 = 收回任务栏**；
+5. 只有 `ExitApp()` 会把 `exiting` 置真，让窗口真正关闭并退出消息循环。
+
+时钟窗口完全不受影响：它们依然是 `WS_EX_TRANSPARENT | WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW`，不进任务栏、不抢焦点。
 
 ### 为什么这么小
 
 - 不引第三方包：只用 `System.Windows.Forms` + `System.Drawing` + P/Invoke；
 - 不打包运行时：直接吃系统自带的 .NET Framework 4.x；
-- 4 个源文件约 1300 行，没有 XAML、没有资源字典、没有 NuGet 还原；
-- `csc /optimize+` 出来就是 **34 KB** 的单文件 exe。
-
----
-
-## 🗂 目录结构
-
-```text
-WallpaperDeskClock/
-├── src/
-│   ├── Program.cs        # Win32 声明、Config 读写、布局存储、开机自启、入口
-│   ├── AppContext.cs     # 托盘、定时器、多显示器、壁纸烘焙与设置
-│   ├── ClockWindow.cs    # 分层透明窗口：渲染 + UpdateLayeredWindow + 拖动
-│   ├── Dialogs.cs        # 设置面板、资源占用面板
-│   └── app.manifest      # asInvoker + Per-Monitor V2 DPI 感知
-├── assets/               # README 配图（由 tools/gen-readme-assets.ps1 生成）
-├── tools/
-│   └── gen-readme-assets.ps1
-├── build.bat             # csc 一键编译 → dist/
-├── config.ini            # 配置模板（程序会改写布局项）
-├── wallpaper.jpg         # 示例壁纸
-└── LICENSE
-```
-
-运行后会额外生成：`_wallpaper_active.jpg`（烘焙后的壁纸副本）、`wallpaperdeskclock.log`（运行日志）、`probe.log`（启动期权限探针）。
+- 6 个源文件约 1500 行，没有 XAML、没有资源字典、没有 NuGet 还原；
+- 62 KB 里还包含了 7 个尺寸的 PNG 图标与版本资源。
 
 ---
 
 ## ❓ 常见问题
 
 <details>
+<summary><b>任务管理器里它叫什么？会不会显示成「桌面窗口管理器」？</b></summary>
+
+「应用」列表里显示 **壁纸桌面时钟**，「详细信息」里的进程名是 **`WallpaperDeskClock.exe`**。
+
+`dwm.exe`（桌面窗口管理器）是 Windows 自己的合成器进程，和本程序无关 —— 本程序只是把透明窗口贴在桌面上，所以视觉上和壁纸融为一体。
+</details>
+
+<details>
+<summary><b>启动后什么都没弹出来，是不是没运行？</b></summary>
+
+这是设计如此：启动时设置窗口是**最小化**的，桌面上只多了一个时钟。
+
+看两个地方：任务栏的蓝色时钟图标、托盘的同款图标 —— 任点一个都能打开设置。
+</details>
+
+<details>
+<summary><b>点了「关闭」，时钟还在，程序是不是没退？</b></summary>
+
+对，这是有意的：关闭只把设置窗口收回任务栏。要退出请用设置里的 **退出程序**，或托盘右键 → **退出**。
+</details>
+
+<details>
 <summary><b>日志里出现 <code>设置桌面壁纸 ... 结果=0 err=5</code>，壁纸没变？</b></summary>
 
-`err=5` 是 `ERROR_ACCESS_DENIED`：`SPI_SETDESKWALLPAPER` 被组策略 / 安全软件 / 会话权限拦住了。程序仍会正常显示时钟，只是改不了壁纸。此时手动右键 `_wallpaper_active.jpg` → **设为桌面背景** 即可，效果一致。
+`err=5` 是 `ERROR_ACCESS_DENIED`：`SPI_SETDESKWALLPAPER` 被组策略 / 安全软件 / 会话权限拦住了。程序仍会正常显示时钟，只是改不了壁纸。此时手动右键 `cache/_wallpaper_active.jpg` → **设为桌面背景** 即可。
 </details>
 
 <details>
 <summary><b>时钟不见了 / 拖到屏幕外面了？</b></summary>
 
-托盘右键 → **恢复默认布局**。程序对拖出屏幕有边界保护（至少留 40 px 在屏内），但极端多屏排列下仍可能跑到别的屏，恢复默认最省事。
+托盘右键 → **恢复默认布局**，或设置面板里的同名按钮。程序对拖出屏幕有边界保护（至少留 40 px 在屏内），但极端多屏排列下仍可能跑到别的屏。
 </details>
 
 <details>
 <summary><b>换了壁纸以后文字看不清？</b></summary>
 
-把 `vignette=1` 打开，并适当提高 `vignette_alpha`（如 `110`）；或把 `color` 换成 `#FFFFFF`、把 `shadow=1` 保持开启。壁纸很花时，压暗是最有效的手段。
+把 `vignette=1` 打开，并适当提高 `vignette_alpha`（如 `110`）；或把 `color` 换成 `#FFFFFF`、`shadow=1` 保持开启。
 </details>
 
 <details>
 <summary><b>只想在其中一块屏显示？</b></summary>
 
-`config.ini` 里 `displays=0`（第 1 块）或 `displays=1`（第 2 块），也可以直接在设置面板的下拉框里选。
+`config/config.ini` 里 `displays=0`（第 1 块）或 `displays=1`（第 2 块），也可以直接在设置面板的下拉框里选。
 </details>
 
 <details>
@@ -292,15 +385,15 @@ WallpaperDeskClock/
 </details>
 
 <details>
-<summary><b>SmartScreen 提示未知发布者？</b></summary>
+<summary><b>能不能只留 exe？删掉 config / logs / cache 会怎样？</b></summary>
 
-exe 未做代码签名，Windows 会对新下载的未签名程序提示。选择「更多信息 → 仍要运行」，或者按上面的方式自己 `build.bat` 编译一个。
+可以。三个目录都会在下次启动时自动重建，`config/config.ini` 也会按默认值重新生成（`resources/wallpaper.jpg` 缺失时只跳过改壁纸，时钟照常显示）。
 </details>
 
 <details>
-<summary><b>支持 Windows 7 吗？</b></summary>
+<summary><b>SmartScreen 提示未知发布者？</b></summary>
 
-代码只用了 Win32 + .NET Framework 4.x 的通用 API，理论可用；但 manifest 只声明了 Win8.1/10/11 兼容性，未在 Win7 上验证。
+exe 未做代码签名，Windows 会对新下载的未签名程序提示。选择「更多信息 → 仍要运行」，或者自己 `build\build.bat` 编译一个。
 </details>
 
 ---
@@ -309,9 +402,10 @@ exe 未做代码签名，Windows 会对新下载的未签名程序提示。选�
 
 | | **WallpaperDeskClock** | Rainmeter | Wallpaper Engine | 系统小组件 |
 | --- | :---: | :---: | :---: | :---: |
-| 体积 | **34 KB** | ~20 MB | ~200 MB+ | 系统内置 |
-| 常驻内存 | **~12 MB** | ~60 MB+ | ~200 MB+ | — |
+| 体积 | **62 KB** | ~20 MB | ~200 MB+ | 系统内置 |
+| 常驻内存 | **~40 MB** | ~60 MB+ | ~200 MB+ | — |
 | 点击穿透 | ✅ | 需配置 | ❌ | ❌ |
+| 任务栏入口 | ✅（最小化，不弹窗） | ✅ | ❌ | ❌ |
 | GPU 占用 | **无**（纯 GDI+ 静态绘制） | 低 | 中～高（动画） | 低 |
 | 学习成本 | 一个 ini | 皮肤语法 | 商店 + 创意工坊 | 无 |
 | 付费 | 免费 | 免费 | 付费 | 免费 |
@@ -323,9 +417,10 @@ exe 未做代码签名，Windows 会对新下载的未签名程序提示。选�
 
 ## 🗺 Roadmap
 
+- [x] 任务栏入口 + 独立图标（v1.1.0）
+- [x] 目录分层：配置 / 资源 / 日志 / 缓存分离
 - [ ] 字体描边 / 可配置阴影颜色与模糊半径
 - [ ] 农历、节气、节日提醒
-- [ ] 托盘图标自定义（现在用的是系统默认图标）
 - [ ] 秒级平滑淡入（保持 CPU 近零的前提下）
 - [ ] GitHub Actions 自动编译 + Release 产物
 
