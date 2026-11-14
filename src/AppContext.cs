@@ -311,20 +311,29 @@ namespace WallpaperDeskClock
             settingsForm.Show();
         }
 
-        /// <summary>关闭按钮 / Alt+F4 只是收回任务栏，程序继续运行</summary>
+        /// <summary>关闭按钮 / Alt+F4：隐藏窗口（任务栏图标一起消失），程序继续在托盘运行</summary>
         void OnSettingsClosing(object sender, FormClosingEventArgs e)
         {
             if (exiting) return;
             e.Cancel = true;
-            if (settingsForm != null) settingsForm.WindowState = FormWindowState.Minimized;
+            HideSettings();
+        }
+
+        /// <summary>隐藏设置窗口：窗口与任务栏按钮都消失，托盘图标保留</summary>
+        public void HideSettings()
+        {
+            if (settingsForm == null || settingsForm.IsDisposed) return;
+            if (settingsForm.WindowState == FormWindowState.Minimized)
+                settingsForm.WindowState = FormWindowState.Normal;
+            settingsForm.Hide();
         }
 
         public void ShowSettings()
         {
             if (settingsForm == null || settingsForm.IsDisposed) CreateSettingsWindow(false);
+            settingsForm.Show();
             if (settingsForm.WindowState == FormWindowState.Minimized)
                 settingsForm.WindowState = FormWindowState.Normal;
-            settingsForm.Show();
             settingsForm.Activate();
             settingsForm.SyncFromApp();
         }

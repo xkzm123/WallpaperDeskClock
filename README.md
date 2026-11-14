@@ -8,7 +8,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](#-快速开始)
 [![.NET](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4?logo=dotnet&logoColor=white)](#-源码编译)
-[![Version](https://img.shields.io/badge/version-1.2.0-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.2.1-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
 [![Size](https://img.shields.io/badge/exe-77%20KB-success)](#-为什么这么小)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#-为什么这么小)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -78,7 +78,7 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 | 🖱️ **点击穿透** | `WS_EX_TRANSPARENT`，图标、右键菜单、拖选文件全部照常 |
 | 🚫 **不抢焦点** | `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，不进 Alt+Tab、不打断游戏全屏 |
 | 📌 **任务栏入口** | 启动后任务栏常驻一个图标：**最小化出现，桌面不弹窗**；点一下就是设置界面 |
-| 🧲 **关闭即收回** | 关闭设置窗口只是收回任务栏，程序继续运行；退出走「退出程序」或托盘菜单 |
+| 🧲 **关闭只留托盘** | 点 ✕ 后窗口与**任务栏图标一起消失**，只留托盘图标，程序继续运行；双击托盘图标即可重开 |
 | 🖐️ **跟手拖动** | 自绘拖动（鼠标捕获 + 屏幕坐标差），不再走系统移动环，1 像素跟手、不卡顿 |
 | 🧩 **时间 / 日期分开拖** | 编辑模式下可整体移动，也可单独拖动「时间」块与「日期」块，各自记住偏移 |
 | 🖼️ **壁纸库** | 指定任意文件夹作为壁纸库，缩略图浏览 + 大图预览 + 一键应用 + 删除 |
@@ -100,7 +100,7 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 
 ### 方式一：直接运行（推荐）
 
-1. 到 [Releases](https://github.com/xkzm123/WallpaperDeskClock/releases/latest) 下载 `WallpaperDeskClock-v1.2.0-win.zip` 并解压；
+1. 到 [Releases](https://github.com/xkzm123/WallpaperDeskClock/releases/latest) 下载 `WallpaperDeskClock-v1.2.1-win.zip` 并解压；
 2. 双击 `WallpaperDeskClock.exe`；
 3. 任务栏出现蓝色时钟图标（**最小化状态**，不会弹窗），桌面右下角出现时钟；
 4. 点任务栏图标 / 双击托盘图标 = 打开设置。
@@ -156,7 +156,11 @@ build\build.bat
 
 ### 关闭 ≠ 退出
 
-点设置窗口的 `✕` 或「关闭」，窗口只会**最小化回任务栏**，时钟继续走。真正退出只有两条路：
+点设置窗口的 `✕` 或「关闭」按钮：**设置窗口消失，任务栏图标一起消失，托盘图标保留**，时钟继续走。
+
+重新打开：**双击托盘图标**，或右键托盘图标 → **设置…**（此时任务栏图标会重新出现）。
+
+真正退出只有两条路：
 
 1. 设置面板里的 **退出程序**；
 2. 托盘右键 → **退出**。
@@ -389,7 +393,7 @@ sequenceDiagram
 <details>
 <summary><b>点了「关闭」，时钟还在，程序是不是没退？</b></summary>
 
-对，这是有意的：关闭只把设置窗口收回任务栏。要退出请用设置里的 **退出程序**，或托盘右键 → **退出**。
+对，这是有意的：✕ 只是把设置窗口收起来（连任务栏图标一起消失），程序还在托盘里跑。要重新打开就双击托盘图标；要退出请用设置里的 **退出程序**，或托盘右键 → **退出**。
 </details>
 
 <details>

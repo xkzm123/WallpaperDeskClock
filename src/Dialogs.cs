@@ -289,7 +289,7 @@ namespace WallpaperDeskClock
             var btnClose = Theme.Button("关闭", true);
             btnClose.Location = new Point(340, 556);
             btnClose.Size = new Size(104, 34);
-            btnClose.Click += (s, e) => WindowState = FormWindowState.Minimized;
+            btnClose.Click += (s, e) => app.HideSettings();
             Controls.Add(btnClose);
         }
 
