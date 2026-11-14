@@ -36,18 +36,18 @@ namespace WallpaperDeskClock
             return p;
         }
 
-        /// <summary>矢量绘制应用 Logo（避免 Icon.ToBitmap 在 .NET Framework 下的花屏）</summary>
+        /// <summary>矢量绘制应用 Logo（与 ico 同一套设计：渐变胶囊 + 白色表盘 + 12/3 指针）</summary>
         public static void DrawLogo(Graphics g, Rectangle r)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var path = Round(r, Math.Max(4, r.Width / 5)))
-            using (var lg = new LinearGradientBrush(r, Color.FromArgb(59, 130, 246), Color.FromArgb(23, 37, 84),
+            using (var path = Round(r, Math.Max(4, r.Width / 4)))
+            using (var lg = new LinearGradientBrush(r, Color.FromArgb(74, 142, 255), Color.FromArgb(24, 48, 132),
                        LinearGradientMode.ForwardDiagonal))
                 g.FillPath(lg, path);
 
-            float pad = r.Width * 0.21f;
+            float pad = r.Width * 0.245f;
             var face = new RectangleF(r.X + pad, r.Y + pad, r.Width - pad * 2, r.Height - pad * 2);
-            float w = Math.Max(1.2f, r.Width * 0.075f);
+            float w = Math.Max(1.2f, r.Width * 0.062f);
             using (var pen = new Pen(Color.White, w))
                 g.DrawEllipse(pen, face);
 
@@ -56,8 +56,8 @@ namespace WallpaperDeskClock
             {
                 pen.StartCap = LineCap.Round;
                 pen.EndCap = LineCap.Round;
-                g.DrawLine(pen, cx, cy, cx, cy - face.Height * 0.30f);
-                g.DrawLine(pen, cx, cy, cx + face.Width * 0.26f, cy + face.Height * 0.11f);
+                g.DrawLine(pen, cx, cy, cx, cy - face.Height * 0.40f);
+                g.DrawLine(pen, cx, cy, cx + face.Width * 0.27f, cy);
             }
         }
 

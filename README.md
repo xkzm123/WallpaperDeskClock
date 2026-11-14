@@ -8,7 +8,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](#-快速开始)
 [![.NET](https://img.shields.io/badge/.NET%20Framework-4.x-512BD4?logo=dotnet&logoColor=white)](#-源码编译)
-[![Version](https://img.shields.io/badge/version-1.2.2-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.2.3-2ea44f)](https://github.com/xkzm123/WallpaperDeskClock/releases/latest)
 [![Size](https://img.shields.io/badge/exe-77%20KB-success)](#-为什么这么小)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](#-为什么这么小)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -100,7 +100,7 @@ WallpaperDeskClock 换了个思路：时钟不是「窗口」，而是一层**�
 
 ### 方式一：直接运行（推荐）
 
-1. 到 [Releases](https://github.com/xkzm123/WallpaperDeskClock/releases/latest) 下载 `WallpaperDeskClock-v1.2.2-win.zip` 并解压；
+1. 到 [Releases](https://github.com/xkzm123/WallpaperDeskClock/releases/latest) 下载 `WallpaperDeskClock-v1.2.3-win.zip` 并解压；
 2. 双击 `WallpaperDeskClock.exe`；
 3. 任务栏出现蓝色时钟图标（**最小化状态**，不会弹窗），桌面右下角出现时钟；
 4. 点任务栏图标 / 双击托盘图标 = 打开设置。
