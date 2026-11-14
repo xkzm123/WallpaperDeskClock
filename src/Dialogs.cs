@@ -327,7 +327,7 @@ namespace WallpaperDeskClock
         }
     }
 
-    /// <summary>运行状态（自动刷新，无开关）</summary>
+    /// <summary>运行状态：窄卡片 + 大字号，数值每秒自动刷新</summary>
     class StatsForm : Form
     {
         Label lblPid, lblCpu, lblMem, lblThreads, lblUptime;
@@ -344,17 +344,17 @@ namespace WallpaperDeskClock
             MaximizeBox = false;
             MinimizeBox = false;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(360, 306);
+            ClientSize = new Size(300, 312);
             BackColor = Theme.Bg;
-            Font = Theme.Ui(12.5f);
+            Font = Theme.Ui(13.5f);
             Icon = Paths.LoadAppIcon();
             AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
 
-            var card = new Card { Location = new Point(16, 16), Size = new Size(328, 214) };
+            var card = new Card { Location = new Point(14, 14), Size = new Size(272, 232) };
             Controls.Add(card);
 
-            int y = 18;
+            int y = 20;
             lblPid = Row(card, "进程 ID", ref y);
             lblCpu = Row(card, "CPU 占用", ref y);
             lblMem = Row(card, "内存占用", ref y);
@@ -362,14 +362,10 @@ namespace WallpaperDeskClock
             lblUptime = Row(card, "运行时长", ref y);
 
             var btnClose = Theme.Button("关闭", true);
-            btnClose.Location = new Point(240, 250);
-            btnClose.Size = new Size(104, 34);
+            btnClose.Location = new Point(14, 258);
+            btnClose.Size = new Size(272, 38);
             btnClose.Click += (s, e) => Close();
             Controls.Add(btnClose);
-
-            var tip = Theme.Label("每秒自动刷新", 11, false, Theme.Muted);
-            tip.Location = new Point(18, 258);
-            Controls.Add(tip);
 
             lastCpu = proc.TotalProcessorTime;
             lastSample = DateTime.Now;
@@ -382,23 +378,23 @@ namespace WallpaperDeskClock
 
         Label Row(Control parent, string title, ref int y)
         {
-            var l = Theme.Label(title, 12.5f, false, Theme.Muted);
-            l.Location = new Point(20, y);
+            var l = Theme.Label(title, 14f, false, Theme.Muted);
+            l.Location = new Point(18, y);
             parent.Controls.Add(l);
 
             var v = new Label
             {
                 Text = "-",
                 AutoSize = false,
-                Size = new Size(180, 22),
-                Location = new Point(128, y - 1),
+                Size = new Size(150, 26),
+                Location = new Point(102, y - 3),
                 TextAlign = ContentAlignment.MiddleRight,
-                Font = Theme.Mono(13),
+                Font = Theme.Mono(17f),
                 ForeColor = Theme.Text,
                 BackColor = Color.Transparent
             };
             parent.Controls.Add(v);
-            y += 38;
+            y += 44;
             return v;
         }
 
