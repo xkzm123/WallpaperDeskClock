@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -10,7 +10,7 @@ using System.Windows.Forms;
 namespace WallpaperDeskClock
 {
     /// <summary>壁纸库：缩略图浏览、预览、一键应用、删除</summary>
-    class WallpaperForm : Form
+    class WallpaperForm : ScaledForm
     {
         const int ThumbW = 160, ThumbH = 90, MaxItems = 120;
 
@@ -39,7 +39,6 @@ namespace WallpaperDeskClock
             BackColor = Theme.Bg;
             Font = Theme.Ui(12.5f);
             Icon = Paths.LoadAppIcon();
-            AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
 
             BuildUi();
@@ -283,7 +282,16 @@ namespace WallpaperDeskClock
 
         // ---------- 缩略图 / 预览 ----------
 
+        /// <summary>优先让 Shell 缩略图服务出图（解码在 Explorer 进程里），失败才退回本地解码</summary>
         static Bitmap MakeThumb(string path, int w, int h)
+        {
+            var shot = ShellImage.Fill(path, w, h, Color.FromArgb(238, 241, 246));
+            if (shot != null) return shot;
+            return MakeThumbLegacy(path, w, h);
+        }
+
+        /// <summary>兜底：整图解码后缩放（小图很快，大图会短暂占内存）</summary>
+        static Bitmap MakeThumbLegacy(string path, int w, int h)
         {
             try
             {
@@ -311,27 +319,32 @@ namespace WallpaperDeskClock
         {
             if (previewBmp != null) { preview.Image = null; previewBmp.Dispose(); previewBmp = null; }
             if (path == null) return;
-            try
+
+            previewBmp = ShellImage.Fill(path, preview.Width, preview.Height, Color.White);
+            if (previewBmp == null)
             {
-                using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
-                using (var img = Image.FromStream(fs))
+                try
                 {
-                    int w = preview.Width, h = preview.Height;
-                    previewBmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
-                    using (var g = Graphics.FromImage(previewBmp))
+                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    using (var img = Image.FromStream(fs))
                     {
-                        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                        g.Clear(Color.White);
-                        float s = Math.Max((float)w / img.Width, (float)h / img.Height);
-                        int nw = (int)Math.Round(img.Width * s);
-                        int nh = (int)Math.Round(img.Height * s);
-                        g.DrawImage(img, (w - nw) / 2, (h - nh) / 2, nw, nh);
+                        int w = preview.Width, h = preview.Height;
+                        previewBmp = new Bitmap(w, h, PixelFormat.Format24bppRgb);
+                        using (var g = Graphics.FromImage(previewBmp))
+                        {
+                            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                            g.Clear(Color.White);
+                            float s = Math.Max((float)w / img.Width, (float)h / img.Height);
+                            int nw = (int)Math.Round(img.Width * s);
+                            int nh = (int)Math.Round(img.Height * s);
+                            g.DrawImage(img, (w - nw) / 2, (h - nh) / 2, nw, nh);
+                        }
                     }
-                    preview.Image = previewBmp;
                 }
+                catch { }
             }
-            catch { }
+            preview.Image = previewBmp;
         }
 
         void DisposeThumbs()
