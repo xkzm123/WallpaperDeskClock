@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -57,6 +57,11 @@ namespace WallpaperDeskClock
             Log("启动完成，显示器数=" + Screen.AllScreens.Length);
 
             TrimMemory();                  // 启动完成：回收初始化期的大图与 GDI 残留
+
+            // Shell / GDI+ 的模块与缓存在启动后还会陆续落地，1.2 s 后再补一刀（一次性，不是轮询）
+            var settle = new System.Windows.Forms.Timer { Interval = 1200 };
+            settle.Tick += (s, e) => { settle.Stop(); settle.Dispose(); TrimMemory(); };
+            settle.Start();
         }
 
         // ---------- 内存 ----------
@@ -83,12 +88,23 @@ namespace WallpaperDeskClock
             finally { trimming = false; }
         }
 
-        /// <summary>弹窗关闭后再修剪：投递到消息队列，等窗体 Dispose 完成、对象真正不可达之后再回收</summary>
+        /// <summary>
+        /// 弹窗关闭后修剪。先立刻收一轮（把已 Dispose 的 GDI+ 资源算进去），
+        /// 再挂一个一次性定时器在 180 ms 后补收一轮 —— 那时窗体对象才真正不可达。
+        /// 只在关窗时跑一次，不是轮询。
+        /// </summary>
         void TrimAfterUi()
         {
-            var ctx = System.Threading.SynchronizationContext.Current;
-            if (ctx == null) { TrimMemory(); return; }
-            ctx.Post(delegate { TrimMemory(); }, null);
+            TrimMemory();
+
+            var t = new System.Windows.Forms.Timer { Interval = 180 };
+            t.Tick += (s, e) =>
+            {
+                t.Stop();
+                t.Dispose();
+                TrimMemory();
+            };
+            t.Start();
         }
 
         /// <summary>不显示秒时没必要 200 ms 醒一次，改成 1 s</summary>
@@ -105,6 +121,22 @@ namespace WallpaperDeskClock
         }
 
         public IList<ClockWindow> Windows { get { return windows; } }
+
+        /// <summary>进程启动时刻：运行时长按它算，弹窗开关不影响</summary>
+        public static readonly DateTime StartedAt = DateTime.Now;
+
+        /// <summary>屏设备名 → 配置键（layout.<key>.*），BuildWindows 与设置面板共用</summary>
+        public static string KeyFor(Screen screen)
+        {
+            return screen.DeviceName.Replace("\\", "_").Replace(".", "");
+        }
+
+        public ClockWindow FindWindow(string screenKey)
+        {
+            if (string.IsNullOrEmpty(screenKey)) return null;
+            foreach (var w in windows) if (w.ScreenKey == screenKey) return w;
+            return null;
+        }
 
         void Log(string msg)
         {
@@ -164,7 +196,7 @@ namespace WallpaperDeskClock
 
             foreach (var scr in targets)
             {
-                string key = scr.DeviceName.Replace("\\", "_").Replace(".", "");
+                string key = KeyFor(scr);
                 var layout = LayoutStore.Load(Cfg, key);
                 var w = new ClockWindow(this, scr, layout);
                 w.Show();
@@ -184,11 +216,34 @@ namespace WallpaperDeskClock
 
         public void ApplyScaleToAll(float scale)
         {
+            ApplyScaleTo(null, scale);
+        }
+
+        /// <summary>按屏设置字号缩放；screenKey 为空表示全部</summary>
+        public void ApplyScaleTo(string screenKey, float scale)
+        {
             foreach (var w in windows)
             {
+                if (!string.IsNullOrEmpty(screenKey) && w.ScreenKey != screenKey) continue;
                 w.LayoutData.Scale = scale;
                 w.ReloadFromConfig();
             }
+        }
+
+        /// <summary>按屏设置秒间距；screenKey 为空表示全部</summary>
+        public void ApplyGapTo(string screenKey, float gap)
+        {
+            foreach (var w in windows)
+            {
+                if (!string.IsNullOrEmpty(screenKey) && w.ScreenKey != screenKey) continue;
+                w.SetGapSec(gap);
+            }
+        }
+
+        /// <summary>把所有窗口的布局（位置 / 缩放 / 间距）写回配置</summary>
+        public void SaveLayouts()
+        {
+            SaveAllLayouts();
         }
 
         public void SetEditMode(bool on)
@@ -198,13 +253,20 @@ namespace WallpaperDeskClock
 
         public void ResetLayouts()
         {
+            ResetLayouts(null);
+        }
+
+        public void ResetLayouts(string screenKey)
+        {
             foreach (var w in windows)
             {
+                if (!string.IsNullOrEmpty(screenKey) && w.ScreenKey != screenKey) continue;
                 w.LayoutData.X = 0.575f;
                 w.LayoutData.Y = 0.790f;
                 w.LayoutData.Scale = 1.0f;
                 w.LayoutData.TimeDX = w.LayoutData.TimeDY = 0f;
                 w.LayoutData.DateDX = w.LayoutData.DateDY = 0f;
+                w.LayoutData.GapSec = 14f;
                 w.ReloadFromConfig();
                 LayoutStore.Save(Cfg, w.ScreenKey, w.LayoutData);
             }
@@ -226,6 +288,24 @@ namespace WallpaperDeskClock
 
         // ---------- 壁纸 ----------
 
+        /// <summary>右下角柔和压暗（径向渐变），烘焙进壁纸</summary>
+        static void DrawVignette(Graphics g, Rectangle scr, int alpha)
+        {
+            var rect = new RectangleF(scr.Width * 0.42f, scr.Height * 0.42f,
+                                      scr.Width * 1.16f, scr.Height * 1.16f);
+            using (var path = new GraphicsPath())
+            {
+                path.AddEllipse(rect);
+                using (var pgb = new PathGradientBrush(path))
+                {
+                    pgb.CenterColor = Color.FromArgb(alpha, 0, 0, 0);
+                    pgb.SurroundColors = new[] { Color.FromArgb(0, 0, 0, 0) };
+                    pgb.FocusScales = new PointF(0.55f, 0.55f);
+                    g.FillPath(pgb, path);
+                }
+            }
+        }
+
         public void ApplyWallpaper()
         {
             try
@@ -241,38 +321,31 @@ namespace WallpaperDeskClock
                 if (Cfg.B("vignette", true))
                 {
                     int alpha = Cfg.I("vignette_alpha", 78);
-                    using (var img = Image.FromFile(src))
-                    using (var bmp = new Bitmap(scr.Width, scr.Height, PixelFormat.Format32bppArgb))
-                    {
-                        using (var g = Graphics.FromImage(bmp))
-                        {
-                            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
-                            float s = Math.Max((float)scr.Width / img.Width, (float)scr.Height / img.Height);
-                            int nw = (int)Math.Round(img.Width * s), nh = (int)Math.Round(img.Height * s);
-                            g.DrawImage(img, new Rectangle((scr.Width - nw) / 2, (scr.Height - nh) / 2, nw, nh));
 
-                            if (alpha > 0)
-                            {
-                                var rect = new RectangleF(scr.Width * 0.42f, scr.Height * 0.42f,
-                                                          scr.Width * 1.16f, scr.Height * 1.16f);
-                                using (var path = new GraphicsPath())
-                                {
-                                    path.AddEllipse(rect);
-                                    using (var pgb = new PathGradientBrush(path))
-                                    {
-                                        pgb.CenterColor = Color.FromArgb(alpha, 0, 0, 0);
-                                        pgb.SurroundColors = new[] { Color.FromArgb(0, 0, 0, 0) };
-                                        pgb.FocusScales = new PointF(0.55f, 0.55f);
-                                        g.FillPath(pgb, path);
-                                    }
-                                }
-                            }
-                        }
+                    // 首选：Shell 出图 + GetDIBits 直写 24bpp DIB，4K 原图不进本进程
+                    if (ShellImage.Bake(src, Paths.CacheWallpaper, scr.Width, scr.Height,
+                            delegate(Graphics g) { if (alpha > 0) DrawVignette(g, scr, alpha); }))
+                    {
                         target = Paths.CacheWallpaper;
-                        // 直接落盘：不再经过 MemoryStream + ToArray()，省掉一整份 JPEG 字节数组
-                        // （1080p 壁纸约 250 KB，4K 壁纸可达数 MB，且会直接进 LOH）
-                        bmp.Save(target, ImageFormat.Jpeg);
+                    }
+                    else
+                    {
+                        // 兜底：Shell 拿不到（小图 / 特殊格式）才自己解码，目标位图用 24bpp
+                        using (var img = Image.FromFile(src))
+                        using (var bmp = new Bitmap(scr.Width, scr.Height, PixelFormat.Format24bppRgb))
+                        {
+                            using (var g = Graphics.FromImage(bmp))
+                            {
+                                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                                float s = Math.Max((float)scr.Width / img.Width, (float)scr.Height / img.Height);
+                                int nw = (int)Math.Round(img.Width * s), nh = (int)Math.Round(img.Height * s);
+                                g.DrawImage(img, new Rectangle((scr.Width - nw) / 2, (scr.Height - nh) / 2, nw, nh));
+                                if (alpha > 0) DrawVignette(g, scr, alpha);
+                            }
+                            target = Paths.CacheWallpaper;
+                            bmp.Save(target, ImageFormat.Jpeg);
+                        }
                     }
                 }
 
