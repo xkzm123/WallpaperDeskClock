@@ -28,12 +28,15 @@
 
 - **真·分层透明**：`UpdateLayeredWindow` + 32bpp ARGB，边缘抗锯齿，不是抠色
 - **点击穿透**：`WS_EX_TRANSPARENT`，图标、右键菜单、拖选文件全部照常；不抢焦点、不进 Alt+Tab
-- **跟手拖动**：整体 / 时间块 / 日期块分别定位，松手即写回配置
-- **多显示器**：每屏独立布局，按屏幕比例存储，换分辨率不跑位
-- **壁纸库**：指定任意文件夹，缩略图 + 预览 + 一键应用 + 删除
-- **按需弹窗**：设置 / 壁纸库 / 运行状态都是打开才创建、关掉即销毁，平时只剩一个托盘图标
-- **几乎零开销**：不显示秒时 1 s 心跳、显示秒时 200 ms 且只在秒变化时重绘，空闲 CPU ≈ 0%，常驻专用内存约 4 MB
-- **零依赖单文件**：只用 .NET Framework 自带的 WinForms + GDI+，exe 77 KB
+- **跟手拖动**：整体 / 时间块 / 日期块分别定位，松手即写回配置；编辑态只框住内容，不再有整窗虚线
+- **多显示器**：每屏独立布局与字号缩放，按屏幕比例存储；秒与时分的间距也能逐屏微调
+- **壁纸库**：缩略图与预览由 Windows Shell 缩略图服务出图，不再把 4K 原图整张解码进内存
+- **按需弹窗**：设置 / 壁纸库 / 运行状态都是打开才创建、关掉即销毁并立即修剪工作集
+- **几乎零开销**：不显示秒时 1 s 心跳、显示秒时 200 ms 且只在秒变化时重绘，空闲 CPU ≈ 0%
+- **真的省内存**：静默常驻专用内存 **3~4 MB**，壁纸库打开峰值 **≈ 7 MB**（旧版 30 MB）
+- **零拷贝绘制**：持久化 `CreateDIBSection` 画布，渲染直接写进 DIB 内存，不再逐帧 `GetHbitmap` 复制位图
+- **跟随 DPI**：PerMonitorV2，拖到不同缩放比的显示器时弹窗整体等比重排；Win11 下用 DWM 圆角标题栏
+- **零依赖单文件**：只用 .NET Framework 自带的 WinForms + GDI+，exe 88 KB
 
 ## 快速开始
 
@@ -54,6 +57,7 @@ build\build.bat
 | 启动 | 桌面右下角出现时钟，托盘出现图标；不再常驻任何设置窗口 |
 | 打开设置 | 双击托盘图标，或托盘右键 →「设置…」 |
 | 关闭设置 | 点 `✕` 或「关闭」：窗口**真正销毁**并释放 GDI 资源，时钟继续走，托盘图标保留 |
+| 分屏调字号 | 设置 →「调整对象」选某块屏，再拖「字号 / 缩放」与「秒间距」；选「全部」则一起改 |
 | 退出程序 | 设置里的「退出程序」，或托盘右键 → 退出 |
 | 自定义布局 | 打开开关后：蓝框内拖「时间」、绿框内拖「日期」、空白处拖整体 |
 
@@ -71,8 +75,16 @@ build\build.bat
 | `vignette` / `vignette_alpha` | `1` / `78` | 右下角径向压暗及其强度 |
 | `font_clock` / `size_clock` | `Bahnschrift` / `64` | 主时间字体与字号（px） |
 | `library` | 空 = `resources/` | 壁纸库目录 |
+| `gap_seconds` | `14` | 秒与时分的默认间距（px），可被每屏的 `layout.<屏>.gap` 覆盖 |
 
-布局项（`layout.<屏>.x/y/scale/tdx/tdy/ddx/ddy`）由拖动和滑块自动写入，不用手改。
+布局项由拖动和滑块自动写入，不用手改：
+
+| 键 | 说明 |
+| --- | --- |
+| `layout.<屏>.x` / `.y` | 时钟在屏幕中的位置（比例） |
+| `layout.<屏>.scale` | 字号缩放（设置面板「字号 / 缩放」） |
+| `layout.<屏>.gap` | 秒与时分间距（设置面板「秒间距」，0 表示贴紧） |
+| `layout.<屏>.tdx/tdy/ddx/ddy` | 时间块 / 日期块相对默认位置的偏移 |
 
 ## 目录结构
 
@@ -81,7 +93,7 @@ WallpaperDeskClock/
 ├── WallpaperDeskClock.exe      # 构建产物，双击即用
 ├── WallpaperDeskClock.ico      # 图标（exe / 任务栏 / 窗口 / 托盘）
 ├── README.md · LICENSE
-├── src/                        # 源码：Program / AppContext / ClockWindow / Dialogs / WallpaperForm / Ui / Paths
+├── src/                        # 源码：Program / AppContext / ClockWindow / Dialogs / WallpaperForm / Ui / ShellImage / Paths
 ├── build/                      # build.bat 编译脚本 · gen-icon.ps1 图标生成
 ├── config/                     # config.sample.ini（运行时生成 config.ini）
 ├── resources/                  # 示例壁纸
