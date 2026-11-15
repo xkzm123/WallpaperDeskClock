@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -31,6 +31,33 @@ namespace WallpaperDeskClock
         [DllImport("gdi32.dll")] public static extern bool DeleteDC(IntPtr hdc);
         [DllImport("gdi32.dll")] public static extern IntPtr SelectObject(IntPtr hdc, IntPtr hgdiobj);
         [DllImport("gdi32.dll")] public static extern bool DeleteObject(IntPtr hObject);
+
+        [DllImport("gdi32.dll")]
+        public static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFO pbmi, uint usage,
+            out IntPtr ppvBits, IntPtr hSection, uint offset);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BITMAPINFOHEADER
+        {
+            public int biSize;
+            public int biWidth;
+            public int biHeight;
+            public short biPlanes;
+            public short biBitCount;
+            public int biCompression;
+            public int biSizeImage;
+            public int biXPelsPerMeter;
+            public int biYPelsPerMeter;
+            public int biClrUsed;
+            public int biClrImportant;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct BITMAPINFO
+        {
+            public BITMAPINFOHEADER bmiHeader;
+            public int bmiColors;
+        }
 
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst,
@@ -241,6 +268,9 @@ namespace WallpaperDeskClock
         /// <summary>时间块 / 日期块相对默认位置的偏移（占窗口宽高的比例）</summary>
         public float TimeDX, TimeDY, DateDX, DateDY;
 
+        /// <summary>秒与时分的水平间距（像素，未乘缩放，可为负）</summary>
+        public float GapSec = 14f;
+
         public const float BaseW = 0.425f;
         public const float BaseH = 0.210f;
 
@@ -266,6 +296,7 @@ namespace WallpaperDeskClock
             e.TimeDY = cfg.F("layout." + screenKey + ".tdy", 0f);
             e.DateDX = cfg.F("layout." + screenKey + ".ddx", 0f);
             e.DateDY = cfg.F("layout." + screenKey + ".ddy", 0f);
+            e.GapSec = Math.Max(0f, cfg.F("layout." + screenKey + ".gap", cfg.F("gap_seconds", 14f)));
             return e;
         }
 
@@ -278,6 +309,7 @@ namespace WallpaperDeskClock
             cfg.Set("layout." + screenKey + ".tdy", e.TimeDY.ToString("0.#####", CultureInfo.InvariantCulture));
             cfg.Set("layout." + screenKey + ".ddx", e.DateDX.ToString("0.#####", CultureInfo.InvariantCulture));
             cfg.Set("layout." + screenKey + ".ddy", e.DateDY.ToString("0.#####", CultureInfo.InvariantCulture));
+            cfg.Set("layout." + screenKey + ".gap", e.GapSec.ToString("0.###", CultureInfo.InvariantCulture));
             cfg.Save();
         }
 
@@ -290,6 +322,7 @@ namespace WallpaperDeskClock
             cfg.Set("layout." + screenKey + ".tdy", "0");
             cfg.Set("layout." + screenKey + ".ddx", "0");
             cfg.Set("layout." + screenKey + ".ddy", "0");
+            cfg.Set("layout." + screenKey + ".gap", "14");
             cfg.Save();
         }
     }
