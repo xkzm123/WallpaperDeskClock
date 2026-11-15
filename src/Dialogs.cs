@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -96,13 +96,14 @@ namespace WallpaperDeskClock
     }
 
     /// <summary>设置面板：开机自启、显示器选择、布局、壁纸库</summary>
-    class SettingsForm : Form
+    class SettingsForm : ScaledForm
     {
         readonly AppContext app;
         ToggleSwitch swAutostart, swEdit;
-        ComboBox cboDisplay;
-        Slider slider;
-        Label lblScale, lblHint, lblLibPath;
+        Segmented segDisplay, segTarget;
+        Slider slider, sliderGap;
+        Label lblScale, lblGap, lblHint, lblLibPath;
+        Timer saveTimer;
         bool loading;
 
         public SettingsForm(AppContext app)
@@ -114,11 +115,10 @@ namespace WallpaperDeskClock
             MinimizeBox = true;
             ShowInTaskbar = true;
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(460, 610);
+            ClientSize = new Size(460, 688);
             BackColor = Theme.Bg;
             Font = Theme.Ui(12.5f);
             Icon = Paths.LoadAppIcon();
-            AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
 
             BuildHeader();
@@ -170,32 +170,30 @@ namespace WallpaperDeskClock
 
             Put(card, "显示位置", 13, false, Theme.Text, 18, 82);
 
-            cboDisplay = new ComboBox
+            segDisplay = new Segmented
             {
-                DropDownStyle = ComboBoxStyle.DropDownList,
-                FlatStyle = FlatStyle.Flat,
-                Font = Theme.Ui(12.5f),
-                Location = new Point(128, 78),
-                Width = 282
+                Location = new Point(120, 74),
+                Size = new Size(290, 34),
+                Font = Theme.Ui(12f)
             };
-            cboDisplay.Items.Add("全部显示器");
+            segDisplay.Items.Add("全部显示器");
             var screens = Screen.AllScreens;
             for (int i = 0; i < screens.Length; i++)
-                cboDisplay.Items.Add(string.Format("显示器 {0}  ·  {1}×{2}", i + 1, screens[i].Bounds.Width, screens[i].Bounds.Height));
-            cboDisplay.SelectedIndexChanged += (s, e) =>
+                segDisplay.Items.Add("显示器 " + (i + 1));
+            segDisplay.SelectedIndexChanged += (s, e) =>
             {
                 if (loading) return;
-                int idx = cboDisplay.SelectedIndex;
+                int idx = segDisplay.SelectedIndex;
                 app.Cfg.Set("displays", idx <= 0 ? "all" : (idx - 1).ToString());
                 app.Cfg.Save();
                 app.RebuildFromSettings();
             };
-            card.Controls.Add(cboDisplay);
+            card.Controls.Add(segDisplay);
         }
 
         void BuildLayoutCard()
         {
-            var card = new Card { Location = new Point(16, 202), Size = new Size(428, 196) };
+            var card = new Card { Location = new Point(16, 202), Size = new Size(428, 272) };
             Controls.Add(card);
 
             Put(card, "布局", 11.5f, true, Theme.Muted, 18, 12);
@@ -207,37 +205,114 @@ namespace WallpaperDeskClock
                 if (loading) return;
                 app.SetEditMode(swEdit.Checked);
                 if (swEdit.Checked) Hint("拖动时钟可整体移动，拖动「时间」「日期」可分别定位", Theme.Accent);
-                else Hint("布局已保存", Theme.Ok);
+                else { Hint("布局已保存", Theme.Ok); app.SaveLayouts(); }
             };
             card.Controls.Add(swEdit);
 
-            Put(card, "字号 / 缩放", 13, false, Theme.Text, 18, 82);
-            lblScale = Put(card, "1.00×", 13, true, Theme.Accent, 352, 80);
+            // 调整对象：字号 / 秒间距按屏独立
+            Put(card, "调整对象", 13, false, Theme.Text, 18, 82);
+            segTarget = new Segmented { Location = new Point(120, 74), Size = new Size(290, 34), Font = Theme.Ui(12f) };
+            var screens = Screen.AllScreens;
+            for (int i = 0; i < screens.Length; i++)
+                segTarget.Items.Add("显示器 " + (i + 1));
+            if (screens.Length > 1) segTarget.Items.Add("全部");
+            segTarget.SelectedIndexChanged += (s, e) =>
+            {
+                if (loading) return;
+                SyncLayoutValues();
+            };
+            card.Controls.Add(segTarget);
 
-            slider = new Slider { Location = new Point(14, 104), Size = new Size(400, 26), Minimum = 50, Maximum = 250, Value = 100 };
+            Put(card, "字号 / 缩放", 13, false, Theme.Text, 18, 122);
+            lblScale = Put(card, "1.00×", 13, true, Theme.Accent, 352, 120);
+
+            slider = new Slider { Location = new Point(14, 142), Size = new Size(400, 26), Minimum = 50, Maximum = 250, Value = 100 };
             slider.ValueChanged += (s, e) =>
             {
                 if (loading) return;
                 lblScale.Text = (slider.Value / 100f).ToString("0.00") + "×";
-                app.ApplyScaleToAll(slider.Value / 100f);
+                app.ApplyScaleTo(TargetKey(), slider.Value / 100f);
+                ScheduleSave();
             };
             card.Controls.Add(slider);
 
+            Put(card, "秒间距", 13, false, Theme.Text, 18, 176);
+            lblGap = Put(card, "14 px", 13, true, Theme.Accent, 352, 174);
+
+            sliderGap = new Slider { Location = new Point(14, 196), Size = new Size(400, 26), Minimum = 0, Maximum = 80, Value = 14 };
+            sliderGap.ValueChanged += (s, e) =>
+            {
+                if (loading) return;
+                lblGap.Text = sliderGap.Value + " px";
+                app.ApplyGapTo(TargetKey(), sliderGap.Value);
+                ScheduleSave();
+            };
+            card.Controls.Add(sliderGap);
+
             var btnReset = Theme.Button("恢复默认布局", false);
-            btnReset.Location = new Point(18, 146);
-            btnReset.Size = new Size(128, 32);
+            btnReset.Location = new Point(18, 232);
+            btnReset.Size = new Size(136, 30);
             btnReset.Click += (s, e) =>
             {
-                app.ResetLayouts();
+                app.ResetLayouts(TargetKey());
                 SyncFromApp();
                 Hint("已恢复默认布局", Theme.Ok);
             };
             card.Controls.Add(btnReset);
         }
 
+        /// <summary>当前「调整对象」对应的屏键；全部时返回 null</summary>
+        string TargetKey()
+        {
+            int n = Screen.AllScreens.Length;
+            int i = segTarget.SelectedIndex;
+            if (i < 0 || i >= n) return null;          // 最后一项是「全部」
+            return AppContext.KeyFor(Screen.AllScreens[i]);
+        }
+
+        /// <summary>把选中屏的缩放 / 间距读回控件</summary>
+        void SyncLayoutValues()
+        {
+            float scale = 1f, gap = 14f;
+            ClockWindow w = app.FindWindow(TargetKey());
+            if (w == null && app.Windows.Count > 0) w = app.Windows[0];
+            if (w != null)
+            {
+                scale = w.LayoutData.Scale;
+                gap = w.LayoutData.GapSec;
+            }
+
+            bool old = loading;
+            loading = true;
+            try
+            {
+                slider.Value = (int)Math.Round(Math.Max(0.5f, Math.Min(2.5f, scale)) * 100);
+                lblScale.Text = (slider.Value / 100f).ToString("0.00") + "×";
+                sliderGap.Value = (int)Math.Round(Math.Max(0, Math.Min(80, gap)));
+                lblGap.Text = sliderGap.Value + " px";
+            }
+            finally { loading = old; }
+        }
+
+        /// <summary>拖动滑杆时不写盘，松手 400 ms 后落盘一次</summary>
+        void ScheduleSave()
+        {
+            if (saveTimer == null)
+            {
+                saveTimer = new Timer { Interval = 400 };
+                saveTimer.Tick += (s, e) =>
+                {
+                    saveTimer.Stop();
+                    app.SaveLayouts();
+                };
+            }
+            saveTimer.Stop();
+            saveTimer.Start();
+        }
+
         void BuildWallpaperCard()
         {
-            var card = new Card { Location = new Point(16, 410), Size = new Size(428, 104) };
+            var card = new Card { Location = new Point(16, 490), Size = new Size(428, 104) };
             Controls.Add(card);
 
             Put(card, "壁纸", 11.5f, true, Theme.Muted, 18, 12);
@@ -268,7 +343,7 @@ namespace WallpaperDeskClock
             {
                 AutoSize = false,
                 Size = new Size(420, 20),
-                Location = new Point(20, 528),
+                Location = new Point(20, 608),
                 Font = Theme.Ui(11.5f),
                 ForeColor = Theme.Muted,
                 BackColor = Color.Transparent
@@ -276,7 +351,7 @@ namespace WallpaperDeskClock
             Controls.Add(lblHint);
 
             var btnExit = Theme.Button("退出程序", false);
-            btnExit.Location = new Point(16, 556);
+            btnExit.Location = new Point(16, 636);
             btnExit.Size = new Size(96, 34);
             btnExit.ForeColor = Theme.Danger;
             btnExit.Click += (s, e) =>
@@ -288,7 +363,7 @@ namespace WallpaperDeskClock
             Controls.Add(btnExit);
 
             var btnClose = Theme.Button("关闭", true);
-            btnClose.Location = new Point(340, 556);
+            btnClose.Location = new Point(340, 636);
             btnClose.Size = new Size(104, 34);
             btnClose.Click += (s, e) => app.CloseSettings();
             Controls.Add(btnClose);
@@ -314,13 +389,11 @@ namespace WallpaperDeskClock
                     int n;
                     if (int.TryParse(mode, out n) && n >= 0 && n < Screen.AllScreens.Length) idx = n + 1;
                 }
-                if (idx >= cboDisplay.Items.Count) idx = 0;
-                cboDisplay.SelectedIndex = idx;
+                if (idx >= segDisplay.Items.Count) idx = 0;
+                segDisplay.SelectedIndex = idx;
 
-                float scale = 1f;
-                if (app.Windows.Count > 0) scale = app.Windows[0].LayoutData.Scale;
-                slider.Value = (int)Math.Round(Math.Max(0.5f, Math.Min(2.5f, scale)) * 100);
-                lblScale.Text = (slider.Value / 100f).ToString("0.00") + "×";
+                if (segTarget.SelectedIndex < 0) segTarget.SelectedIndex = 0;
+                SyncLayoutValues();
 
                 lblLibPath.Text = WallpaperForm.LibraryFolder(app);
             }
@@ -329,13 +402,12 @@ namespace WallpaperDeskClock
     }
 
     /// <summary>运行状态：窄卡片 + 大字号，数值每秒自动刷新</summary>
-    class StatsForm : Form
+    class StatsForm : ScaledForm
     {
         Label lblPid, lblCpu, lblMem, lblThreads, lblUptime;
         Timer timer;
         TimeSpan lastCpu;
         DateTime lastSample = DateTime.Now;
-        readonly DateTime startTime = DateTime.Now;
         readonly Process proc = Process.GetCurrentProcess();
 
         /// <summary>PROCESS_MEMORY_COUNTERS_EX2 的布局（EX 的 PrivateUsage + EX2 的专用/共享工作集）</summary>
@@ -371,7 +443,6 @@ namespace WallpaperDeskClock
             BackColor = Theme.Bg;
             Font = Theme.Ui(13.5f);
             Icon = Paths.LoadAppIcon();
-            AutoScaleMode = AutoScaleMode.Dpi;
             DoubleBuffered = true;
 
             var card = new Card { Location = new Point(14, 14), Size = new Size(272, 232) };
@@ -439,7 +510,10 @@ namespace WallpaperDeskClock
                 // WorkingSet64 含共享页，会明显偏大，不能用。
                 lblMem.Text = PrivateWorkingSetMb().ToString("0.0") + " MB";
                 lblThreads.Text = proc.Threads.Count.ToString();
-                var up = DateTime.Now - startTime;
+                // 启动时刻由 AppContext 记住（静态 8 字节）；满 24 小时归零重计，只在窗口打开时算
+                var up = DateTime.Now - AppContext.StartedAt;
+                if (up < TimeSpan.Zero) up = TimeSpan.Zero;
+                up = TimeSpan.FromTicks(up.Ticks % TimeSpan.TicksPerDay);
                 lblUptime.Text = string.Format("{0:00}:{1:00}:{2:00}", (int)up.TotalHours, up.Minutes, up.Seconds);
             }
             catch
